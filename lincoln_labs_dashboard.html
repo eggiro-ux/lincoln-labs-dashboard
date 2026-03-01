@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lincoln Labs — Revenue Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0e;
+    --surface: #191917;
+    --border: #2a2a27;
+    --text: #e8e6e0;
+    --muted: #7a7870;
+    --civille: #22c55e;
+    --awesomeapi: #f97316;
+    --truss-sal: #a855f7;
+    --truss-svc: #3b82f6;
+    --lincoln: #e5e5e5;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 40px 48px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 40px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .header-left h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 300;
+    font-size: 2.4rem;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    line-height: 1;
+  }
+
+  .header-left h1 em {
+    font-style: italic;
+    color: var(--muted);
+  }
+
+  .header-left p {
+    margin-top: 6px;
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .upload-zone {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .upload-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    padding: 10px 18px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+    transition: border-color 0.2s, background 0.2s;
+  }
+
+  .upload-btn:hover {
+    border-color: var(--muted);
+    background: #222220;
+  }
+
+  .upload-btn svg { opacity: 0.6; }
+
+  #fileStatus {
+    font-size: 0.68rem;
+    color: var(--muted);
+    letter-spacing: 0.05em;
+  }
+
+  #fileInput { display: none; }
+
+  .legend {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.15s;
+    user-select: none;
+  }
+
+  .legend-item:hover { color: var(--text); }
+  .legend-item.hidden { opacity: 0.3; }
+
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .chart-wrapper {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 28px 28px 16px;
+  }
+
+  .y-cap-note {
+    position: absolute;
+    top: 10px;
+    right: 16px;
+    font-size: 0.65rem;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+  }
+
+  /* Tooltip */
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 100;
+    background: #111110;
+    border: 1px solid var(--border);
+    padding: 12px 16px;
+    min-width: 220px;
+  }
+
+  #tooltip.visible { opacity: 1; }
+
+  .tt-month {
+    font-size: 0.7rem;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    font-size: 0.72rem;
+    padding: 3px 0;
+  }
+
+  .tt-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--muted);
+  }
+
+  .tt-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .tt-val {
+    font-size: 0.75rem;
+    color: var(--text);
+    white-space: nowrap;
+  }
+
+  .tt-val.over-cap {
+    color: var(--truss-sal);
+  }
+
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    margin-top: 1px;
+    background: var(--border);
+  }
+
+  .stat-card {
+    background: var(--surface);
+    padding: 18px 20px;
+  }
+
+  .stat-label {
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stat-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+
+  .stat-val {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 1.35rem;
+    letter-spacing: -0.02em;
+    line-height: 1;
+  }
+
+  .stat-sub {
+    font-size: 0.62rem;
+    color: var(--muted);
+    margin-top: 4px;
+    letter-spacing: 0.03em;
+  }
+
+  .drag-over .chart-wrapper,
+  .drag-over header {
+    outline: 2px dashed var(--muted);
+    outline-offset: -2px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Lincoln Labs <em>Revenue</em></h1>
+    <p>P&amp;L by Product Line — Completed Months</p>
+  </div>
+  <div class="upload-zone">
+    <button class="upload-btn" onclick="document.getElementById('fileInput').click()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+      </svg>
+      Upload Updated P&amp;L
+    </button>
+    <span id="fileStatus">Showing embedded data</span>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+  </div>
+</header>
+
+<div class="legend" id="legend"></div>
+
+<div class="chart-wrapper" id="chartWrapper">
+  <div class="y-cap-note" id="capNote"></div>
+  <canvas id="chart"></canvas>
+</div>
+
+<div class="stats-row" id="statsRow"></div>
+
+<div id="tooltip">
+  <div class="tt-month" id="ttMonth"></div>
+  <div id="ttRows"></div>
+</div>
+
+<script>
+// ─── Embedded data (from current file) ───────────────────────────────────────
+const EMBEDDED = {
+  months: ["January 2024","February 2024","March 2024","April 2024","May 2024","June 2024","July 2024","August 2024","September 2024","October 2024","November 2024","December 2024","January 2025","February 2025","March 2025","April 2025","May 2025","June 2025","July 2025","August 2025","September 2025","October 2025","November 2025","December 2025","January 2026","February 2026"],
+  series: {
+    civille:             [121521.14,109782.5,115319.7,117807.66,112452.39,107870.98,123173.95,128356.13,143558.14,133544.98,132639.07,156065.67,159778.32,156976.04,148315.04,144519.85,155986.04,169267.77,167527.63,179684.05,171227.76,186769.83,167061.67,182154.61,197139.46,188715.0],
+    awesomeapi:          [26595.0,27201.0,28703.0,30144.0,30732.0,32208.0,34100.0,35795.0,37527.0,38780.0,40379.0,42263.0,42970.0,44513.0,46427.0,48609.0,47322.0,49655.0,51841.0,56125.0,59609.0,62280.0,60779.0,62141.0,62566.0,null],
+    truss_sal_delta:     [3818.88,21774.46,20116.56,23352.0,27825.16,7726.23,8311.17,14932.51,24248.19,25062.39,20172.65,13046.85,25050.8,42375.73,11986.54,18012.29,19521.52,57742.71,-3726.09,30800.38,43869.66,2979.41,13210.6,-159602.55,23332.02,null],
+    truss_svc_rec:       [22384.89,25318.06,23279.67,34946.06,27678.62,29022.27,31631.42,27273.77,36512.78,29738.76,38671.57,31721.33,34654.46,44829.13,45883.25,37386.04,46500.88,42488.71,41993.14,53866.93,47384.81,44890.97,42319.92,47352.05,50293.98,62776.28],
+    lincoln_labs:        [1289.05,2246.3,1301.52,5820.49,2543.8,18942.9,9447.2,18488.66,30740.04,45258.86,37102.12,37550.2,25432.5,23057.1,16193.45,30307.68,32859.96,24054.49,17039.86,14431.59,25126.76,13232.13,31453.38,21288.35,36463.91,31807.56]
+  }
+};
+
+// ─── Series config ────────────────────────────────────────────────────────────
+const SERIES_CONFIG = [
+  { key: 'civille',        label: 'Civille + Phantom Copy',              color: '#22c55e', dash: [] },
+  { key: 'awesomeapi',     label: 'AwesomeAPI',                           color: '#eab308', dash: [] },
+  { key: 'truss_sal_delta',label: 'Truss Client Salaries (Income − Exp)', color: '#a855f7', dash: [] },
+  { key: 'truss_svc_rec',  label: 'Truss Svc Fees + Recruitment',         color: '#3b82f6', dash: [] },
+  { key: 'lincoln_labs',   label: 'Lincoln Labs Total',                   color: '#e5e5e5', dash: [4,4] },
+];
+
+const Y_CAP = 300000;
+const MARGIN = { top: 24, right: 32, bottom: 52, left: 72 };
+
+let currentData = EMBEDDED;
+let hidden = new Set();
+let hoveredMonth = null;
+
+// ─── Parse uploaded file ──────────────────────────────────────────────────────
+function parseXLSX(file) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+      // Find header row (contains month names)
+      let headerRow = -1;
+      for (let r = 0; r < raw.length; r++) {
+        if (raw[r] && raw[r].some(c => typeof c === 'string' && c.toLowerCase().includes('january'))) {
+          headerRow = r; break;
+        }
+      }
+      if (headerRow < 0) { alert('Could not find month headers in file.'); return; }
+
+      const headers = raw[headerRow];
+      // Find month columns (exclude last incomplete month = "Mar 1" pattern)
+      const monthCols = [];
+      for (let c = 1; c < headers.length - 1; c++) {
+        if (headers[c] && typeof headers[c] === 'string' && !headers[c].toLowerCase().startsWith('mar 1') && !headers[c].toLowerCase().includes('total')) {
+          monthCols.push({ idx: c, label: headers[c] });
+        }
+      }
+
+      const findRow = (keyword) => raw.findIndex(r => r && r[0] && typeof r[0] === 'string' && r[0].toLowerCase().includes(keyword.toLowerCase()));
+
+      const getRow = (rowIdx) => monthCols.map(({ idx }) => {
+        const v = raw[rowIdx] ? raw[rowIdx][idx] : null;
+        return (v !== null && v !== '' && !isNaN(v)) ? parseFloat(v) : null;
+      });
+
+      const rCivilleTotal   = findRow('Total for Civille');
+      const rAwesome        = findRow('AwesomeAPI');
+      const rTrussSalIncome  = findRow('Truss Client Salaries');
+      const rTrussSalExpense = raw.findIndex(r => r && r[0] && typeof r[0] === 'string' && r[0].toLowerCase().includes('truss - client salaries expense'));
+      const rTrussSvc       = findRow('Truss Service Fees');
+      const rTrussRec       = findRow('Truss Recruitment');
+      const rLincoln        = findRow('Total for Lincoln Labs');
+
+      if ([rCivilleTotal, rAwesome, rTrussSalIncome, rTrussSalExpense, rTrussSvc, rTrussRec, rLincoln].some(r => r < 0)) {
+        alert('Could not find all required rows. Check the file format matches the original P&L.');
+        return;
+      }
+
+      const svc = getRow(rTrussSvc);
+      const rec = getRow(rTrussRec);
+      const svcRec = svc.map((v, i) => ((v || 0) + (rec[i] || 0)));
+      const salIncome  = getRow(rTrussSalIncome);
+      const salExpense = getRow(rTrussSalExpense);
+      const salDelta   = salIncome.map((v, i) => (v !== null && salExpense[i] !== null) ? Math.round((v - salExpense[i]) * 100) / 100 : null);
+
+      currentData = {
+        months: monthCols.map(m => m.label),
+        series: {
+          civille:         getRow(rCivilleTotal),
+          awesomeapi:      getRow(rAwesome),
+          truss_sal_delta: salDelta,
+          truss_svc_rec:   svcRec,
+          lincoln_labs:    getRow(rLincoln),
+        }
+      };
+
+      document.getElementById('fileStatus').textContent = `Loaded: ${file.name}`;
+      render();
+    } catch(err) {
+      alert('Error parsing file: ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ─── File input ───────────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', e => {
+  if (e.target.files[0]) parseXLSX(e.target.files[0]);
+});
+
+// Drag & drop on whole body
+document.body.addEventListener('dragover', e => { e.preventDefault(); document.body.classList.add('drag-over'); });
+document.body.addEventListener('dragleave', () => document.body.classList.remove('drag-over'));
+document.body.addEventListener('drop', e => {
+  e.preventDefault(); document.body.classList.remove('drag-over');
+  if (e.dataTransfer.files[0]) parseXLSX(e.dataTransfer.files[0]);
+});
+
+// ─── Legend ───────────────────────────────────────────────────────────────────
+function buildLegend() {
+  const el = document.getElementById('legend');
+  el.innerHTML = '';
+  SERIES_CONFIG.forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'legend-item' + (hidden.has(s.key) ? ' hidden' : '');
+    item.innerHTML = `<div class="legend-dot" style="background:${s.color}"></div>${s.label}`;
+    item.addEventListener('click', () => {
+      if (hidden.has(s.key)) hidden.delete(s.key); else hidden.add(s.key);
+      item.classList.toggle('hidden');
+      // Hide/show corresponding stat card
+      const card = document.querySelector(`.stat-card[data-key="${s.key}"]`);
+      if (card) card.style.display = hidden.has(s.key) ? 'none' : '';
+      drawChart();
+    });
+    el.appendChild(item);
+  });
+}
+
+// ─── Stats row ────────────────────────────────────────────────────────────────
+function buildStats() {
+  const el = document.getElementById('statsRow');
+  el.innerHTML = '';
+  SERIES_CONFIG.forEach(s => {
+    const vals = (currentData.series[s.key] || []).filter(v => v !== null);
+    const latest = vals[vals.length - 1];
+    const prev = vals[vals.length - 2];
+    let pctDisplay = '';
+    if (prev !== null && prev !== undefined && latest !== null && latest !== undefined) {
+      if (prev < 0 && latest >= 0) {
+        pctDisplay = `<span style="color:#4ade80">↑ N/M (negative → positive)</span>`;
+      } else if (prev >= 0 && latest < 0) {
+        pctDisplay = `<span style="color:#f87171">↓ N/M (positive → negative)</span>`;
+      } else if (prev < 0 && latest < 0) {
+        // Both negative: bigger loss = worse, smaller loss = better
+        const pct = ((latest - prev) / Math.abs(prev)) * 100;
+        const better = latest > prev;
+        pctDisplay = `<span style="color:${better ? '#4ade80' : '#f87171'}">${better ? '↑' : '↓'} ${Math.abs(pct).toFixed(1)}% vs prior month</span>`;
+      } else {
+        const pct = ((latest - prev) / prev) * 100;
+        pctDisplay = `<span style="color:${pct >= 0 ? '#4ade80' : '#f87171'}">${pct >= 0 ? '↑' : '↓'} ${Math.abs(pct).toFixed(1)}% vs prior month</span>`;
+      }
+    }
+    const card = document.createElement('div');
+    card.className = 'stat-card';
+    card.setAttribute('data-key', s.key);
+    if (hidden.has(s.key)) card.style.display = 'none';
+    card.innerHTML = `
+      <div class="stat-label"><div class="stat-dot" style="background:${s.color}"></div><span style="color:var(--muted)">${s.label}</span></div>
+      <div class="stat-val" style="color:${s.color}">${fmt(latest)}</div>
+      <div class="stat-sub">${pctDisplay}</div>
+    `;
+    el.appendChild(card);
+  });
+}
+
+// ─── Chart drawing ────────────────────────────────────────────────────────────
+const canvas = document.getElementById('chart');
+const ctx = canvas.getContext('2d');
+
+function fmt(v) {
+  if (v === null || v === undefined) return '—';
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtK(v) {
+  if (v === 0) return '$0';
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '-' : '';
+  if (abs >= 1000000) return sign + '$' + (abs/1000000).toFixed(1) + 'M';
+  if (abs >= 100000)  return sign + '$' + (abs/1000).toFixed(0) + 'K';
+  if (abs >= 10000)   return sign + '$' + (abs/1000).toFixed(1) + 'K';
+  if (abs >= 1000)    return sign + '$' + (abs/1000).toFixed(1) + 'K';
+  return sign + '$' + abs.toFixed(0);
+}
+
+let hitPoints = []; // for hover detection
+
+function drawChart() {
+  const wrapper = document.getElementById('chartWrapper');
+  const W = wrapper.clientWidth - 56; // padding
+  const H = Math.max(380, Math.round(W * 0.38));
+  canvas.width = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const { months, series } = currentData;
+  const n = months.length;
+  const plotW = W - MARGIN.left - MARGIN.right;
+  const plotH = H - MARGIN.top - MARGIN.bottom;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Auto-scale Y axis to visible data, with some headroom
+  let dataMax = 0, dataMin = 0;
+  SERIES_CONFIG.forEach(s => {
+    if (hidden.has(s.key)) return;
+    (series[s.key] || []).forEach(v => {
+      if (v !== null) { dataMax = Math.max(dataMax, v); dataMin = Math.min(dataMin, v); }
+    });
+  });
+  const yMax = Math.ceil((dataMax * 1.08) / 10000) * 10000 || 100000;
+  const yMin = dataMin < 0 ? Math.floor((dataMin * 1.1) / 10000) * 10000 : 0;
+  const yRange = yMax - yMin || 100000;
+
+  // Pick a step size that gives ~5-7 gridlines
+  const rawStep = yRange / 6;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const niceSteps = [1, 2, 2.5, 5, 10].map(f => f * magnitude);
+  const yStep = niceSteps.find(s => yRange / s <= 8) || niceSteps[niceSteps.length - 1];
+  const yTicks = [];
+  for (let t = yMin; t <= yMax; t += yStep) yTicks.push(t);
+  ctx.font = `10px 'DM Mono', monospace`;
+  yTicks.forEach(t => {
+    const y = MARGIN.top + plotH - ((t - yMin) / yRange) * plotH;
+    ctx.strokeStyle = t === 0 ? '#3a3a37' : '#2a2a27';
+    ctx.lineWidth = t === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(MARGIN.left, y); ctx.lineTo(MARGIN.left + plotW, y); ctx.stroke();
+    ctx.fillStyle = '#7a7870';
+    ctx.textAlign = 'right';
+    ctx.fillText(fmtK(t), MARGIN.left - 8, y + 3.5);
+  });
+
+  // X axis labels
+  const step = Math.ceil(n / 18);
+  ctx.fillStyle = '#7a7870';
+  ctx.textAlign = 'center';
+  months.forEach((m, i) => {
+    if (i % step !== 0 && i !== n - 1) return;
+    const x = MARGIN.left + (i / (n - 1)) * plotW;
+    const parts = m.split(' ');
+    const short = parts[0].slice(0, 3) + '\n' + parts[1];
+    const lines = short.split('\n');
+    lines.forEach((l, li) => ctx.fillText(l, x, H - MARGIN.bottom + 16 + li * 13));
+  });
+
+  hitPoints = [];
+
+  // Draw series
+  SERIES_CONFIG.forEach(s => {
+    if (hidden.has(s.key)) return;
+    const vals = series[s.key] || [];
+    ctx.strokeStyle = s.color;
+    ctx.lineWidth = 2;
+    ctx.setLineDash(s.dash);
+    ctx.beginPath();
+    let started = false;
+    vals.forEach((v, i) => {
+      if (v === null) return;
+      const x = MARGIN.left + (i / (n - 1)) * plotW;
+      const y = MARGIN.top + plotH - ((v - yMin) / yRange) * plotH;
+      if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Dots
+    vals.forEach((v, i) => {
+      if (v === null) return;
+      const x = MARGIN.left + (i / (n - 1)) * plotW;
+      const y = MARGIN.top + plotH - ((v - yMin) / yRange) * plotH;
+      const isHov = hoveredMonth === i;
+      ctx.beginPath();
+      ctx.arc(x, y, isHov ? 5.5 : 3.5, 0, Math.PI * 2);
+      ctx.fillStyle = isHov ? s.color : '#191917';
+      ctx.strokeStyle = s.color;
+      ctx.lineWidth = 2;
+      ctx.fill(); ctx.stroke();
+
+      hitPoints.push({ x, y, i, key: s.key, val: v });
+    });
+  });
+
+  // Hover vertical line
+  if (hoveredMonth !== null) {
+    const x = MARGIN.left + (hoveredMonth / (n - 1)) * plotW;
+    ctx.strokeStyle = '#3a3a37';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(x, MARGIN.top); ctx.lineTo(x, MARGIN.top + plotH); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  updateCapNote();
+}
+
+function updateCapNote() {
+  document.getElementById('capNote').textContent = '';
+}
+
+// ─── Tooltip ──────────────────────────────────────────────────────────────────
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const { months } = currentData;
+  const n = months.length;
+  const plotW = canvas.clientWidth - MARGIN.left - MARGIN.right;
+
+  // Find closest month index
+  let closest = null, minDist = Infinity;
+  for (let i = 0; i < n; i++) {
+    const x = MARGIN.left + (i / (n - 1)) * plotW;
+    const d = Math.abs(mx - x);
+    if (d < minDist) { minDist = d; closest = i; }
+  }
+
+  if (closest !== null && minDist < 40) {
+    if (hoveredMonth !== closest) { hoveredMonth = closest; drawChart(); }
+    showTooltip(e.clientX, e.clientY, closest);
+  } else {
+    if (hoveredMonth !== null) { hoveredMonth = null; drawChart(); }
+    hideTooltip();
+  }
+});
+
+canvas.addEventListener('mouseleave', () => {
+  hoveredMonth = null; drawChart(); hideTooltip();
+});
+
+function showTooltip(mx, my, i) {
+  const tt = document.getElementById('tooltip');
+  document.getElementById('ttMonth').textContent = currentData.months[i];
+  const rows = document.getElementById('ttRows');
+  rows.innerHTML = '';
+  SERIES_CONFIG.forEach(s => {
+    if (hidden.has(s.key)) return;
+    const v = (currentData.series[s.key] || [])[i];
+    if (v === null || v === undefined) return;
+    const row = document.createElement('div');
+    row.className = 'tt-row';
+    row.innerHTML = `
+      <span class="tt-label"><span class="tt-dot" style="background:${s.color}"></span>${s.label}</span>
+      <span class="tt-val">${fmt(v)}</span>
+    `;
+    rows.appendChild(row);
+  });
+
+  const ttW = 260, ttH = 160;
+  let left = mx + 16, top = my - 20;
+  if (left + ttW > window.innerWidth - 8) left = mx - ttW - 16;
+  if (top + ttH > window.innerHeight - 8) top = window.innerHeight - ttH - 8;
+
+  tt.style.left = left + 'px';
+  tt.style.top = top + 'px';
+  tt.classList.add('visible');
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('visible');
+}
+
+// ─── Init & resize ────────────────────────────────────────────────────────────
+function render() {
+  buildLegend();
+  buildStats();
+  drawChart();
+}
+
+window.addEventListener('resize', drawChart);
+render();
+</script>
+</body>
+</html>

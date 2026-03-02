@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lincoln Labs — Privacy Policy</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0f0f0e; --surface: #191917; --border: #2a2a27;
+    --text: #e8e6e0; --muted: #7a7870;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Mono', monospace; min-height: 100vh; padding: 40px 48px; }
+
+  header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border); }
+  .header-left h1 { font-family: 'Fraunces', serif; font-weight: 300; font-size: 2.4rem; letter-spacing: -0.02em; line-height: 1; }
+  .header-left h1 em { font-style: italic; color: var(--muted); }
+  .header-left p { margin-top: 6px; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+  .header-right { font-size: 0.68rem; color: var(--muted); }
+  .header-right a { color: var(--muted); text-decoration: none; border-bottom: 1px solid var(--border); transition: color 0.15s; }
+  .header-right a:hover { color: var(--text); }
+
+  .content { max-width: 720px; }
+
+  .meta { display: flex; gap: 32px; margin-bottom: 40px; padding: 16px 20px; background: var(--surface); border: 1px solid var(--border); }
+  .meta-item { display: flex; flex-direction: column; gap: 4px; }
+  .meta-label { font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  .meta-val { font-size: 0.75rem; color: var(--text); }
+
+  section { margin-bottom: 36px; }
+  h2 { font-family: 'Fraunces', serif; font-weight: 300; font-size: 1.15rem; letter-spacing: -0.01em; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  p { font-size: 0.75rem; color: var(--muted); line-height: 1.8; margin-bottom: 12px; }
+  p:last-child { margin-bottom: 0; }
+  ul { list-style: none; padding: 0; margin-bottom: 12px; }
+  ul li { font-size: 0.75rem; color: var(--muted); line-height: 1.8; padding-left: 16px; position: relative; }
+  ul li::before { content: '—'; position: absolute; left: 0; color: var(--border); }
+  strong { color: var(--text); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Lincoln Labs <em>Privacy</em></h1>
+    <p>Internal Tool · Privacy Policy</p>
+  </div>
+  <div class="header-right">
+    <a href="/">← Back to Dashboard</a>
+  </div>
+</header>
+
+<div class="content">
+
+  <div class="meta">
+    <div class="meta-item">
+      <span class="meta-label">Effective Date</span>
+      <span class="meta-val">March 1, 2026</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Scope</span>
+      <span class="meta-val">Internal use only</span>
+    </div>
+    <div class="meta-item">
+      <span class="meta-label">Applies To</span>
+      <span class="meta-val">Lincoln Labs Revenue Dashboard</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>Overview</h2>
+    <p>This Privacy Policy describes how Lincoln Labs, Inc. ("Lincoln Labs," "we," or "us") handles information within the Lincoln Labs Revenue Dashboard (the "Tool"). The Tool is an internal business application restricted to authorized Lincoln Labs personnel. It is not a public-facing product.</p>
+    <p>By using the Tool, you acknowledge that you have read and understood this policy.</p>
+  </section>
+
+  <section>
+    <h2>Information We Access</h2>
+    <p>The Tool connects to QuickBooks Online (QBO) via OAuth 2.0 on your behalf. When you authenticate, it accesses the following data from your QBO account:</p>
+    <ul>
+      <li>Profit &amp; Loss report data, including income and expense account balances</li>
+      <li>Company realm ID used to scope API requests to the correct QBO company</li>
+      <li>OAuth access and refresh tokens required to maintain your authenticated session</li>
+    </ul>
+    <p>No data is collected from end users beyond what is necessary to authenticate with QBO and render the dashboard. The Tool does not collect names, email addresses, IP addresses, or device identifiers.</p>
+  </section>
+
+  <section>
+    <h2>How Information Is Used</h2>
+    <p>Data accessed through the QBO API is used exclusively to:</p>
+    <ul>
+      <li>Render revenue charts and period-over-period comparisons within the dashboard</li>
+      <li>Maintain an authenticated session so you do not need to re-authorize on every visit</li>
+    </ul>
+    <p>Financial data is <strong>not stored persistently</strong>. It is fetched live from QBO on each page load and held only in server memory for the duration of the request. It is never written to a database, logged to disk, or transmitted to any third party.</p>
+  </section>
+
+  <section>
+    <h2>Session Data</h2>
+    <p>Your OAuth tokens and QBO realm ID are stored in a server-side session (backed by an encrypted SQLite store on the host server). Session cookies are:</p>
+    <ul>
+      <li>Transmitted over HTTPS only</li>
+      <li>Set with <strong>SameSite=Lax</strong> to limit cross-site exposure</li>
+      <li>Valid for 7 days, after which you will need to re-authenticate</li>
+    </ul>
+    <p>You can end your session at any time by clicking "Disconnect QBO" in the dashboard header, which destroys the server-side session and clears your tokens.</p>
+  </section>
+
+  <section>
+    <h2>Data Sharing</h2>
+    <p>Lincoln Labs does not sell, rent, or share your financial data or session credentials with any third party. The only external service the Tool communicates with is the Intuit QuickBooks Online API, solely to retrieve data you have authorized.</p>
+  </section>
+
+  <section>
+    <h2>Access Controls</h2>
+    <p>The Tool is deployed on a private Railway instance and is intended exclusively for authorized Lincoln Labs team members. Access is controlled by QuickBooks Online OAuth — only accounts with existing access to the Lincoln Labs QBO organization can authenticate successfully.</p>
+  </section>
+
+  <section>
+    <h2>Data Retention</h2>
+    <p>OAuth tokens stored in your session are automatically expired after 7 days. No financial data is retained beyond the life of a single API request. If you revoke the Tool's access within QuickBooks Online, all stored tokens become immediately invalid.</p>
+  </section>
+
+  <section>
+    <h2>Changes to This Policy</h2>
+    <p>We may update this policy as the Tool evolves. The effective date at the top of this page reflects the most recent revision. Continued use of the Tool after changes constitutes acceptance of the updated policy.</p>
+  </section>
+
+  <section>
+    <h2>Contact</h2>
+    <p>Questions about this policy can be directed to the Lincoln Labs team internally. There is no public support channel for this tool.</p>
+  </section>
+
+</div>
+</body>
+</html>

@@ -30,6 +30,7 @@
   .spinner { width: 32px; height: 32px; border: 2px solid var(--border); border-top-color: #4ade80; border-radius: 50%; animation: spin 0.8s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   #loadingState p { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.05em; }
+  #loadingStep { font-size: 0.68rem; color: var(--border); letter-spacing: 0.04em; }
 
   /* Login prompt */
   #loginPrompt { display: none; flex-direction: column; align-items: center; justify-content: center; padding: 80px; gap: 20px; text-align: center; }
@@ -37,7 +38,12 @@
   #loginPrompt p { font-size: 0.75rem; color: var(--muted); max-width: 360px; line-height: 1.7; }
 
   /* Error */
-  #errorState { display: none; padding: 24px; background: #2a1515; border: 1px solid #5a2020; font-size: 0.75rem; color: #f87171; margin-bottom: 24px; }
+  #errorState { display: none; padding: 20px 24px; background: #2a1515; border: 1px solid #5a2020; font-size: 0.75rem; color: #f87171; margin-bottom: 24px; }
+  #errorState .error-body { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  #errorState .error-msg { line-height: 1.6; }
+  #errorState .error-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  #errorState .error-actions a { font-size: 0.72rem; padding: 7px 14px; border: 1px solid #5a2020; color: #f87171; text-decoration: none; transition: border-color 0.2s; white-space: nowrap; }
+  #errorState .error-actions a:hover { border-color: #f87171; }
 
   /* Tabs */
   .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
@@ -108,7 +114,8 @@
 
 <div id="loadingState">
   <div class="spinner"></div>
-  <p>Fetching revenue data from QuickBooks…</p>
+  <p id="loadingMsg">Checking authentication…</p>
+  <span id="loadingStep"></span>
 </div>
 
 <div id="dashboardContent" style="display:none">
@@ -201,12 +208,44 @@ async function checkAuth() {
   }
 }
 
+// ─── Error display ────────────────────────────────────────────────────────────
+function showError(msg, { showReconnect = false } = {}) {
+  document.getElementById('loadingState').style.display = 'none';
+  const errEl = document.getElementById('errorState');
+  errEl.style.display = 'block';
+  const reconnectBtn = showReconnect
+    ? `<a href="/auth/login">Reconnect QuickBooks</a>` : '';
+  errEl.innerHTML = `
+    <div class="error-body">
+      <span class="error-msg">${msg}</span>
+      <span class="error-actions">
+        <a href="javascript:location.reload()">Retry</a>
+        ${reconnectBtn}
+      </span>
+    </div>`;
+}
+
+function setLoadingMsg(msg, step = '') {
+  document.getElementById('loadingMsg').textContent = msg;
+  document.getElementById('loadingStep').textContent = step;
+}
+
 // ─── Data loading ─────────────────────────────────────────────────────────────
 async function loadAll() {
   document.getElementById('loadingState').style.display = 'flex';
   document.getElementById('dashboardContent').style.display = 'none';
   document.getElementById('loginPrompt').style.display = 'none';
+  document.getElementById('errorState').style.display = 'none';
 
+  // Surface OAuth errors passed back as query params
+  const params = new URLSearchParams(location.search);
+  if (params.get('error') === 'auth_failed') {
+    showError('QuickBooks authentication failed. Please try connecting again.', { showReconnect: true });
+    document.getElementById('loginPrompt').style.display = 'none';
+    return;
+  }
+
+  setLoadingMsg('Checking authentication…');
   const authed = await checkAuth();
   if (!authed) {
     document.getElementById('loadingState').style.display = 'none';
@@ -215,12 +254,23 @@ async function loadAll() {
   }
 
   try {
-    const [monthly, current] = await Promise.all([
-      fetch('/api/monthly').then(r => r.json()),
-      fetch('/api/current-period').then(r => r.json()),
+    setLoadingMsg('Loading revenue data…', 'Fetching monthly history');
+    const [monthlyRes, currentRes] = await Promise.all([
+      fetch('/api/monthly'),
+      fetch('/api/current-period'),
     ]);
 
-    if (monthly.error || current.error) throw new Error(monthly.error || current.error);
+    if (monthlyRes.status === 401 || currentRes.status === 401) {
+      showError('Your QuickBooks session expired. Please reconnect to continue.', { showReconnect: true });
+      return;
+    }
+
+    setLoadingMsg('Loading revenue data…', 'Processing results');
+    const [monthly, current] = await Promise.all([monthlyRes.json(), currentRes.json()]);
+
+    if (monthly.error || current.error) {
+      throw new Error(monthly.error || current.error);
+    }
 
     trendData = monthly;
     periodData = current;
@@ -234,10 +284,7 @@ async function loadAll() {
     drawTrendChart();
     drawComparisonChart();
   } catch (err) {
-    document.getElementById('loadingState').style.display = 'none';
-    const errEl = document.getElementById('errorState');
-    errEl.style.display = 'block';
-    errEl.textContent = 'Error loading data: ' + err.message + '. Try refreshing or reconnecting QuickBooks.';
+    showError('Failed to load data: ' + err.message, { showReconnect: true });
   }
 }
 

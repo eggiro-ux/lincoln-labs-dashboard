@@ -8,6 +8,10 @@ const { getMonthlyData, getCurrentPeriodData } = require('./qbo');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Required for Railway (and any reverse-proxy): trust X-Forwarded-Proto so
+// express-session will set Secure cookies even though the internal connection is HTTP.
+app.set('trust proxy', 1);
+
 // ─── Session store (SQLite so sessions survive Railway restarts) ──────────────
 const SQLiteStore = require('connect-sqlite3')(session);
 app.use(session({
@@ -15,7 +19,11 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
   saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production', maxAge: 7 * 24 * 60 * 60 * 1000 }, // 7 days
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  },
 }));
 
 app.use(express.json());
@@ -74,7 +82,12 @@ app.get('/auth/callback', async (req, res) => {
     req.session.tokens = tokens;
     req.session.realmId = req.query.realmId;
     req.session.tokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
-    res.redirect('/');
+    // Explicitly wait for SQLite to commit before redirecting — avoids a race
+    // condition where the browser follows the redirect before the session is written.
+    req.session.save(err => {
+      if (err) console.error('Session save error:', err);
+      res.redirect('/');
+    });
   } catch (err) {
     console.error('OAuth callback error:', err);
     res.redirect('/?error=auth_failed');

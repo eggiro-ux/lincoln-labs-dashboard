@@ -88,7 +88,7 @@ async function getMonthlyData(tokens, realmId) {
 
   const monthCols = cols
     .map((c, i) => ({ idx: i, label: c.ColTitle, type: c.ColType }))
-    .filter(c => c.type === 'Money' && c.label && c.label !== 'Total');
+    .filter(c => c.type === 'Money' && /\b20\d{2}\b/.test(c.label));
 
   console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
   console.log('[MONTHLY] Excluded columns:', JSON.stringify(

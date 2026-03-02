@@ -1,3 +1,13 @@
+// ─── Catch silent crashes before they silently SIGTERM the process ────────────
+process.on('uncaughtException', err => {
+  console.error('UNCAUGHT EXCEPTION — process will exit:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION — process will exit:', reason);
+  process.exit(1);
+});
+
 require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
@@ -11,6 +21,9 @@ const PORT = process.env.PORT || 3000;
 // Required for Railway (and any reverse-proxy): trust X-Forwarded-Proto so
 // express-session will set Secure cookies even though the internal connection is HTTP.
 app.set('trust proxy', 1);
+
+// ─── Health check — must be before session middleware so Railway can reach it ─
+app.get('/health', (req, res) => res.sendStatus(200));
 
 // ─── Session store ────────────────────────────────────────────────────────────
 // Using MemoryStore (express-session built-in, pure JS, no native addons).

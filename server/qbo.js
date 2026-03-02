@@ -114,16 +114,26 @@ async function getMonthlyData(tokens, realmId) {
   //   3. Have MetaData EndDate strictly before today — a completed month's last day
   //      is always before today; any partial month or YTD Total whose EndDate
   //      equals today (when end_date was today) is excluded here.
-  const monthCols = allMoneyCols.filter(c =>
+  let monthCols = allMoneyCols.filter(c =>
     c.idx !== totalColIdx &&
     /\b20\d{2}\b/.test(c.label) &&
     (!c.endDate || c.endDate < todayStr)
   );
 
+  // Hard check: if the last surviving column has no non-empty StartDate MetaData
+  // it is almost certainly the YTD Total — remove it unconditionally.
+  if (monthCols.length > 0 && !monthCols[monthCols.length - 1].startDate) {
+    const dropped = monthCols[monthCols.length - 1];
+    console.log(`[MONTHLY] Hard check: removing last col (no StartDate) idx=${dropped.idx} label="${dropped.label}"`);
+    monthCols = monthCols.slice(0, -1);
+  }
+
   console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
   console.log('[MONTHLY] Excluded columns:', JSON.stringify(
     allMoneyCols.filter(c => !monthCols.includes(c))
   ));
+  // Log every surviving column with its full MetaData so we can see exactly what's getting through
+  monthCols.forEach(col => console.log('[KEPT COL]', col.label, JSON.stringify(cols[col.idx]?.MetaData ?? null)));
 
   // Build per-month account values
   const rows = pl.Rows?.Row || [];
@@ -241,6 +251,28 @@ async function getMonthlyData(tokens, realmId) {
   });
 
   console.log('[MONTHLY] Completed months count:', months.length, '| months:', months);
+
+  // Outlier safety net: null any value > 10× its series median.
+  // A YTD Total column that slips past all label/MetaData filters will have an
+  // accumulated value many multiples larger than any single month — this catches it.
+  const medianOf = vals => {
+    const v = vals.filter(x => x != null && x > 0).sort((a, b) => a - b);
+    if (!v.length) return 0;
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+  };
+  for (const key of Object.keys(seriesArrays)) {
+    const med = medianOf(seriesArrays[key]);
+    if (med > 0) {
+      seriesArrays[key] = seriesArrays[key].map((v, i) => {
+        if (v != null && v > 10 * med) {
+          console.log(`[MONTHLY] Outlier nulled: key="${key}" month="${months[i]}" value=${v} > 10×median=${med}`);
+          return null;
+        }
+        return v;
+      });
+    }
+  }
 
   return { months, series: seriesArrays };
 }

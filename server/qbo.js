@@ -71,10 +71,13 @@ function aggregateSeries(accountValues, expenseValues = {}) {
 // ─── /api/monthly — full historical P&L by month ─────────────────────────────
 // Returns { months: [...], series: { civille: [...], ... } }
 async function getMonthlyData(tokens, realmId) {
-  // Pull from Jan 2024 to today
+  // End at last day of previous month so QBO never returns a partial current-month
+  // column. new Date(year, month, 0) gives the last day of the previous month.
   const start = '2024-01-01';
   const today = new Date();
-  const end = today.toISOString().split('T')[0];
+  const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
+  const end = lastDayPrevMonth.toISOString().split('T')[0];
+  const todayStr = today.toISOString().split('T')[0];
 
   const pl = await fetchPL(tokens, realmId, start, end, 'month');
 
@@ -85,15 +88,19 @@ async function getMonthlyData(tokens, realmId) {
   console.log(`[MONTHLY] Raw column count: ${cols.length}`);
   cols.forEach(c => console.log('[COL]', JSON.stringify(c)));
 
-  // All Money columns, preserving original array index — idx is used later as
-  // row.ColData[col.idx + 1], so indices must stay relative to the original cols array.
+  // All Money columns, preserving original array index and extracting MetaData dates.
+  // idx is used as row.ColData[col.idx + 1] so must stay relative to original cols array.
   const allMoneyCols = cols
-    .map((c, i) => ({ idx: i, label: c.ColTitle, type: c.ColType }))
+    .map((c, i) => {
+      const meta = {};
+      (c.MetaData || []).forEach(m => { meta[m.Name] = m.Value; });
+      return { idx: i, label: c.ColTitle, type: c.ColType, startDate: meta.StartDate, endDate: meta.EndDate };
+    })
     .filter(c => c.type === 'Money');
 
-  // Safety net: QBO always places the YTD Total as the last Money column.
+  // Safety net: QBO places the YTD Total as the last Money column.
   // If its title doesn't match the strict "MMM YYYY" pattern, flag it for
-  // unconditional exclusion regardless of whether the year regex also catches it.
+  // unconditional exclusion regardless of whether other filters also catch it.
   const MONTH_TITLE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+20\d{2}$/;
   const lastMoney = allMoneyCols[allMoneyCols.length - 1];
   const totalColIdx = (lastMoney && !MONTH_TITLE.test(lastMoney.label)) ? lastMoney.idx : -1;
@@ -101,10 +108,16 @@ async function getMonthlyData(tokens, realmId) {
     console.log(`[MONTHLY] Safety net: excluding last Money col idx=${totalColIdx} label="${lastMoney.label}"`);
   }
 
-  // Primary filter: year regex (\b20\d{2}\b) plus safety-net exclusion of the
-  // identified Total column. Both must pass.
+  // Keep only columns that:
+  //   1. Are not the safety-net Total column
+  //   2. Have a year in the label (primary month filter)
+  //   3. Have MetaData EndDate strictly before today — a completed month's last day
+  //      is always before today; any partial month or YTD Total whose EndDate
+  //      equals today (when end_date was today) is excluded here.
   const monthCols = allMoneyCols.filter(c =>
-    c.idx !== totalColIdx && /\b20\d{2}\b/.test(c.label)
+    c.idx !== totalColIdx &&
+    /\b20\d{2}\b/.test(c.label) &&
+    (!c.endDate || c.endDate < todayStr)
   );
 
   console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
@@ -206,29 +219,19 @@ async function getMonthlyData(tokens, realmId) {
     console.log('[MONTHLY] First month expense map:', JSON.stringify(monthlyExpense[0]));
   }
 
-  // Determine which months are complete (exclude current partial month)
-  const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-  const completedMonths = monthCols.filter(col => {
-    // col.label is like "Jan 2024" — parse it
-    const d = new Date(col.label);
-    const colMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    return colMonth < currentMonth;
-  });
-
-  const months = completedMonths.map(col => col.label);
+  // monthCols already contains only fully completed months (partial month and YTD
+  // Total were excluded above). Build the series directly from monthCols.
+  const months = monthCols.map(col => col.label);
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
 
-  completedMonths.forEach((col, i) => {
-    const idx = monthCols.findIndex(m => m.label === col.label);
-    const agg = aggregateSeries(monthlyIncome[idx], monthlyExpense[idx]);
+  monthCols.forEach((col, i) => {
+    const agg = aggregateSeries(monthlyIncome[i], monthlyExpense[i]);
     if (i === 0) {
       console.log('[MONTHLY] First completed month aggregated series:', JSON.stringify(agg));
-      // For each ACCOUNT_MAP key, show which accounts were found vs. missing
       for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
-        const found = config.accounts.map(a => `"${a}"=${monthlyIncome[idx][a] ?? 'MISSING'}`);
-        const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${monthlyExpense[idx][a] ?? 'MISSING'}`);
+        const found = config.accounts.map(a => `"${a}"=${monthlyIncome[i][a] ?? 'MISSING'}`);
+        const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${monthlyExpense[i][a] ?? 'MISSING'}`);
         console.log(`[MONTHLY] Key "${key}": income[${found.join(', ')}]${foundExp.length ? ` expense[${foundExp.join(', ')}]` : ''} → ${agg[key]}`);
       }
     }

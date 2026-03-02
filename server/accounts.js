@@ -8,7 +8,7 @@ const ACCOUNT_MAP = {
   civille: {
     label: 'Civille + Phantom Copy',
     color: '#22c55e',
-    accounts: ['Total for Civille'],
+    accounts: ['Total Civille'],
     type: 'income',
   },
 
@@ -42,7 +42,7 @@ const ACCOUNT_MAP = {
   lincoln_labs: {
     label: 'Lincoln Labs Total',
     color: '#e5e5e5',
-    accounts: ['Total for Lincoln Labs'],
+    accounts: ['Total Lincoln Labs'],
     type: 'income',
   },
 };

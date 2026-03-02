@@ -13,8 +13,7 @@
     "node-quickbooks": "^2.0.37",
     "intuit-oauth": "^4.0.0",
     "axios": "^1.6.0",
-    "dotenv": "^16.3.1",
-    "connect-sqlite3": "^0.9.13"
+    "dotenv": "^16.3.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

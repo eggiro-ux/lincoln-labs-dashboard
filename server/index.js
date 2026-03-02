@@ -12,10 +12,10 @@ const PORT = process.env.PORT || 3000;
 // express-session will set Secure cookies even though the internal connection is HTTP.
 app.set('trust proxy', 1);
 
-// ─── Session store (SQLite so sessions survive Railway restarts) ──────────────
-const SQLiteStore = require('connect-sqlite3')(session);
+// ─── Session store ────────────────────────────────────────────────────────────
+// Using MemoryStore (express-session built-in, pure JS, no native addons).
+// Sessions reset on redeploy — users re-auth via QBO in one click.
 app.use(session({
-  store: new SQLiteStore({ db: 'sessions.db', dir: '/tmp' }),
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
   saveUninitialized: false,

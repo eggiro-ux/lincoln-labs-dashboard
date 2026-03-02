@@ -3,11 +3,12 @@
 // If an account name changes in QBO, update it here.
 
 const ACCOUNT_MAP = {
-  // Civille: sum of both sub-accounts
+  // Civille: read the QBO section Summary row rather than summing sub-accounts,
+  // because "Civille" is a Section not a Data row and its children may vary.
   civille: {
     label: 'Civille + Phantom Copy',
     color: '#22c55e',
-    accounts: ['Civille', 'Phantom Copy'],
+    accounts: ['Total for Civille'],
     type: 'income',
   },
 
@@ -36,11 +37,12 @@ const ACCOUNT_MAP = {
     type: 'income',
   },
 
-  // Lincoln Labs: sum of all sub-accounts
+  // Lincoln Labs: read the QBO section Summary row — the individual sub-accounts
+  // (Consulting, Royalties, etc.) were previously missing from the traversal.
   lincoln_labs: {
     label: 'Lincoln Labs Total',
     color: '#e5e5e5',
-    accounts: ['Consulting', 'Credit Card Fees', 'Rental Income (from Subletting)', 'Royalties'],
+    accounts: ['Total for Lincoln Labs'],
     type: 'income',
   },
 };

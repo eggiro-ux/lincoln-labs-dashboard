@@ -80,16 +80,21 @@ async function getMonthlyData(tokens, realmId) {
 
   // Extract column headers (month labels)
   const cols = pl.Columns?.Column || [];
-  console.log('[MONTHLY] Raw column count:', cols.length);
-  console.log('[MONTHLY] All columns:', JSON.stringify(cols.map((c, i) => ({
-    idx: i, type: c.ColType, title: c.ColTitle,
-  }))));
+  // Log every raw column so we can see exactly what ColType/ColTitle the Total column uses
+  console.log(`[MONTHLY] Raw column count: ${cols.length}`);
+  cols.forEach((c, i) =>
+    console.log(`[MONTHLY]   col[${i}]: ColType="${c.ColType}" ColTitle="${c.ColTitle}"`)
+  );
 
   const monthCols = cols
     .map((c, i) => ({ idx: i, label: c.ColTitle, type: c.ColType }))
     .filter(c => c.type === 'Money' && c.label && c.label !== 'Total');
 
-  console.log('[MONTHLY] Money columns (monthCols):', JSON.stringify(monthCols));
+  console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
+  console.log('[MONTHLY] Excluded columns:', JSON.stringify(
+    cols.map((c, i) => ({ idx: i, type: c.ColType, title: c.ColTitle }))
+      .filter((_, i) => !monthCols.find(m => m.idx === i))
+  ));
 
   // Build per-month account values
   const rows = pl.Rows?.Row || [];
@@ -120,18 +125,42 @@ async function getMonthlyData(tokens, realmId) {
 
   function processRowsInner(rows, isCOGS, parentSection = '') {
     for (const row of rows) {
-      if (row.type === 'Section' && row.Rows?.Row) {
+      if (row.type === 'Section') {
         const sName = row.Header?.ColData?.[0]?.value || '';
         const stillCOGS = isCOGS ||
           sName.toLowerCase().includes('cost of goods') ||
           sName.toLowerCase().includes('offshore labor');
-        console.log(`[MONTHLY]   Sub-section "${sName}" under "${parentSection}" isCOGS=${stillCOGS}, child rows: ${row.Rows.Row.length}`);
-        processRowsInner(row.Rows.Row, stillCOGS, sName);
+
+        // Recurse into child rows
+        if (row.Rows?.Row) {
+          console.log(`[MONTHLY]   Sub-section "${sName}" under "${parentSection}" isCOGS=${stillCOGS}, child rows: ${row.Rows.Row.length}`);
+          processRowsInner(row.Rows.Row, stillCOGS, sName);
+        }
+
+        // Capture the section Summary (e.g. "Total for Civille") — QBO puts the
+        // rolled-up total here, separate from the individual Data rows inside Rows.
+        if (row.Summary?.ColData) {
+          const summaryName = row.Summary.ColData[0]?.value;
+          if (summaryName) {
+            const firstColRaw = monthCols[0] ? row.Summary.ColData[monthCols[0].idx + 1] : null;
+            console.log(`[MONTHLY]   Summary "${summaryName}" under "${parentSection}" isCOGS=${stillCOGS} | firstMonthCol="${firstColRaw?.value}"`);
+            monthCols.forEach((col, i) => {
+              const val = parseFloat(row.Summary.ColData[col.idx + 1]?.value || '0');
+              if (stillCOGS) {
+                monthlyExpense[i][summaryName] = (monthlyExpense[i][summaryName] || 0) + val;
+                allSeenExpenseNames.add(summaryName);
+              } else {
+                monthlyIncome[i][summaryName] = (monthlyIncome[i][summaryName] || 0) + val;
+                allSeenIncomeNames.add(summaryName);
+              }
+            });
+          }
+        }
       }
+
       if (row.type === 'Data' && row.ColData) {
         const name = row.ColData[0]?.value;
         if (!name) continue;
-        // Log the raw ColData for the first month column so we can verify idx arithmetic
         const firstColRaw = monthCols[0] ? row.ColData[monthCols[0].idx + 1] : null;
         console.log(`[MONTHLY]   Data row "${name}" under "${parentSection}" isCOGS=${isCOGS} | ColData length=${row.ColData.length} | firstMonthCol idx=${monthCols[0]?.idx} → ColData[${monthCols[0]?.idx}+1]="${firstColRaw?.value}"`);
         monthCols.forEach((col, i) => {
@@ -222,7 +251,7 @@ async function getCurrentPeriodData(tokens, realmId) {
   console.log('[PERIOD] === RAW CURRENT PERIOD Rows ===');
   console.log(JSON.stringify(curPL.Rows, null, 2));
 
-  function extractTotals(pl, isCOGS = false) {
+  function extractTotals(pl) {
     const income = {}, expense = {};
     function walk(rows, inCOGS) {
       for (const row of rows) {
@@ -231,7 +260,20 @@ async function getCurrentPeriodData(tokens, realmId) {
           const nowCOGS = inCOGS ||
             sName.toLowerCase().includes('cost of goods') ||
             sName.toLowerCase().includes('offshore labor');
+
+          // Recurse into child rows
           if (row.Rows?.Row) walk(row.Rows.Row, nowCOGS);
+
+          // Capture section Summary (e.g. "Total for Civille") — rolled-up total
+          // QBO keeps this separate from the individual Data rows inside Rows.
+          if (row.Summary?.ColData) {
+            const summaryName = row.Summary.ColData[0]?.value;
+            const val = parseFloat(row.Summary.ColData[1]?.value || '0');
+            if (summaryName) {
+              if (nowCOGS) expense[summaryName] = (expense[summaryName] || 0) + val;
+              else income[summaryName] = (income[summaryName] || 0) + val;
+            }
+          }
         }
         if (row.type === 'Data' && row.ColData) {
           const name = row.ColData[0]?.value;

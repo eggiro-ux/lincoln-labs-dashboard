@@ -33,7 +33,7 @@ async function fetchPL(tokens, realmId, startDate, endDate, columns = 'month') {
     accounting_method: 'Accrual',
   });
 
-  if (columns === 'month') params.set('columns', 'MONTH');
+  if (columns === 'month') params.set('summarize_column_by', 'Month');
 
   const url = `${base}/v3/company/${realmId}/reports/ProfitAndLoss?${params}`;
 
@@ -217,6 +217,10 @@ async function getCurrentPeriodData(tokens, realmId) {
     fetchPL(tokens, realmId, fmt(curStart), fmt(curEnd), 'total'),
     fetchPL(tokens, realmId, fmt(priorStart), fmt(priorEnd), 'total'),
   ]);
+
+  // Full raw dump so we can see the exact QBO section/row structure
+  console.log('[PERIOD] === RAW CURRENT PERIOD Rows ===');
+  console.log(JSON.stringify(curPL.Rows, null, 2));
 
   function extractTotals(pl, isCOGS = false) {
     const income = {}, expense = {};

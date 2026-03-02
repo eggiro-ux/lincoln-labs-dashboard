@@ -11,11 +11,11 @@ const ACCOUNT_MAP = {
     type: 'income',
   },
 
-  // AwesomeAPI
+  // AwesomeAPI — QBO may return with or without a space; include both variants
   awesomeapi: {
     label: 'AwesomeAPI',
     color: '#eab308',
-    accounts: ['AwesomeAPI'],
+    accounts: ['AwesomeAPI', 'Awesome API'],
     type: 'income',
   },
 

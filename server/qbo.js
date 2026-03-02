@@ -80,15 +80,31 @@ async function getMonthlyData(tokens, realmId) {
 
   // Extract column headers (month labels)
   const cols = pl.Columns?.Column || [];
+  console.log('[MONTHLY] Raw column count:', cols.length);
+  console.log('[MONTHLY] All columns:', JSON.stringify(cols.map((c, i) => ({
+    idx: i, type: c.ColType, title: c.ColTitle,
+  }))));
+
   const monthCols = cols
     .map((c, i) => ({ idx: i, label: c.ColTitle, type: c.ColType }))
     .filter(c => c.type === 'Money' && c.label && c.label !== 'Total');
 
+  console.log('[MONTHLY] Money columns (monthCols):', JSON.stringify(monthCols));
+
   // Build per-month account values
   const rows = pl.Rows?.Row || [];
+  console.log('[MONTHLY] Top-level row count:', rows.length);
+  console.log('[MONTHLY] Top-level row types/headers:', rows.map(r => ({
+    type: r.type,
+    header: r.Header?.ColData?.[0]?.value,
+  })));
 
   const monthlyIncome = monthCols.map(() => ({}));
   const monthlyExpense = monthCols.map(() => ({}));
+
+  // Collect every unique account name seen, for name-matching diagnostics
+  const allSeenIncomeNames = new Set();
+  const allSeenExpenseNames = new Set();
 
   function processRows(rows, section = '') {
     for (const row of rows) {
@@ -96,29 +112,36 @@ async function getMonthlyData(tokens, realmId) {
         const sectionName = row.Header?.ColData?.[0]?.value || section;
         const isCOGS = sectionName.toLowerCase().includes('cost of goods') ||
                        sectionName.toLowerCase().includes('offshore labor');
-        if (row.Rows?.Row) processRowsInner(row.Rows.Row, isCOGS);
+        console.log(`[MONTHLY] Entering section "${sectionName}" isCOGS=${isCOGS}, child rows: ${row.Rows?.Row?.length ?? 0}`);
+        if (row.Rows?.Row) processRowsInner(row.Rows.Row, isCOGS, sectionName);
       }
     }
   }
 
-  function processRowsInner(rows, isCOGS) {
+  function processRowsInner(rows, isCOGS, parentSection = '') {
     for (const row of rows) {
       if (row.type === 'Section' && row.Rows?.Row) {
         const sName = row.Header?.ColData?.[0]?.value || '';
         const stillCOGS = isCOGS ||
           sName.toLowerCase().includes('cost of goods') ||
           sName.toLowerCase().includes('offshore labor');
-        processRowsInner(row.Rows.Row, stillCOGS);
+        console.log(`[MONTHLY]   Sub-section "${sName}" under "${parentSection}" isCOGS=${stillCOGS}, child rows: ${row.Rows.Row.length}`);
+        processRowsInner(row.Rows.Row, stillCOGS, sName);
       }
       if (row.type === 'Data' && row.ColData) {
         const name = row.ColData[0]?.value;
         if (!name) continue;
+        // Log the raw ColData for the first month column so we can verify idx arithmetic
+        const firstColRaw = monthCols[0] ? row.ColData[monthCols[0].idx + 1] : null;
+        console.log(`[MONTHLY]   Data row "${name}" under "${parentSection}" isCOGS=${isCOGS} | ColData length=${row.ColData.length} | firstMonthCol idx=${monthCols[0]?.idx} → ColData[${monthCols[0]?.idx}+1]="${firstColRaw?.value}"`);
         monthCols.forEach((col, i) => {
           const val = parseFloat(row.ColData[col.idx + 1]?.value || '0');
           if (isCOGS) {
             monthlyExpense[i][name] = (monthlyExpense[i][name] || 0) + val;
+            allSeenExpenseNames.add(name);
           } else {
             monthlyIncome[i][name] = (monthlyIncome[i][name] || 0) + val;
+            allSeenIncomeNames.add(name);
           }
         });
       }
@@ -126,6 +149,17 @@ async function getMonthlyData(tokens, realmId) {
   }
 
   processRows(rows);
+
+  console.log('[MONTHLY] === ALL SEEN INCOME ACCOUNT NAMES ===');
+  console.log([...allSeenIncomeNames].sort().join('\n'));
+  console.log('[MONTHLY] === ALL SEEN EXPENSE ACCOUNT NAMES ===');
+  console.log([...allSeenExpenseNames].sort().join('\n'));
+
+  // Log the first month's raw extracted maps so we can see actual values
+  if (monthlyIncome[0]) {
+    console.log('[MONTHLY] First month income map:', JSON.stringify(monthlyIncome[0]));
+    console.log('[MONTHLY] First month expense map:', JSON.stringify(monthlyExpense[0]));
+  }
 
   // Determine which months are complete (exclude current partial month)
   const currentMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
@@ -144,10 +178,21 @@ async function getMonthlyData(tokens, realmId) {
   completedMonths.forEach((col, i) => {
     const idx = monthCols.findIndex(m => m.label === col.label);
     const agg = aggregateSeries(monthlyIncome[idx], monthlyExpense[idx]);
+    if (i === 0) {
+      console.log('[MONTHLY] First completed month aggregated series:', JSON.stringify(agg));
+      // For each ACCOUNT_MAP key, show which accounts were found vs. missing
+      for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+        const found = config.accounts.map(a => `"${a}"=${monthlyIncome[idx][a] ?? 'MISSING'}`);
+        const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${monthlyExpense[idx][a] ?? 'MISSING'}`);
+        console.log(`[MONTHLY] Key "${key}": income[${found.join(', ')}]${foundExp.length ? ` expense[${foundExp.join(', ')}]` : ''} → ${agg[key]}`);
+      }
+    }
     for (const key of Object.keys(ACCOUNT_MAP)) {
       seriesArrays[key].push(agg[key] ?? null);
     }
   });
+
+  console.log('[MONTHLY] Completed months count:', months.length, '| months:', months);
 
   return { months, series: seriesArrays };
 }
@@ -200,8 +245,27 @@ async function getCurrentPeriodData(tokens, realmId) {
   const cur = extractTotals(curPL);
   const prior = extractTotals(priorPL);
 
+  console.log('[PERIOD] === CURRENT PERIOD INCOME ACCOUNTS ===');
+  console.log(JSON.stringify(cur.income, null, 2));
+  console.log('[PERIOD] === CURRENT PERIOD EXPENSE ACCOUNTS ===');
+  console.log(JSON.stringify(cur.expense, null, 2));
+  console.log('[PERIOD] === PRIOR PERIOD INCOME ACCOUNTS ===');
+  console.log(JSON.stringify(prior.income, null, 2));
+  console.log('[PERIOD] === PRIOR PERIOD EXPENSE ACCOUNTS ===');
+  console.log(JSON.stringify(prior.expense, null, 2));
+
   const currentSeries = aggregateSeries(cur.income, cur.expense);
   const priorSeries = aggregateSeries(prior.income, prior.expense);
+
+  console.log('[PERIOD] Current series aggregated:', JSON.stringify(currentSeries));
+  console.log('[PERIOD] Prior series aggregated:', JSON.stringify(priorSeries));
+
+  // For each key, show which source accounts were found vs. missing
+  for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+    const found = config.accounts.map(a => `"${a}"=${cur.income[a] ?? 'MISSING'}`);
+    const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${cur.expense[a] ?? 'MISSING'}`);
+    console.log(`[PERIOD] Key "${key}": income[${found.join(', ')}]${foundExp.length ? ` expense[${foundExp.join(', ')}]` : ''} → current=${currentSeries[key]}`);
+  }
 
   // Build comparison per product line
   const comparison = {};
@@ -211,6 +275,8 @@ async function getCurrentPeriodData(tokens, realmId) {
     const delta = Math.round((current - previous) * 100) / 100;
     comparison[key] = { label: config.label, color: config.color, current, previous, delta };
   }
+
+  console.log('[PERIOD] Final comparison:', JSON.stringify(comparison));
 
   return {
     currentPeriod: { start: fmt(curStart), end: fmt(curEnd) },

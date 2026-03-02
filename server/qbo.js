@@ -80,20 +80,36 @@ async function getMonthlyData(tokens, realmId) {
 
   // Extract column headers (month labels)
   const cols = pl.Columns?.Column || [];
-  // Log every raw column so we can see exactly what ColType/ColTitle the Total column uses
-  console.log(`[MONTHLY] Raw column count: ${cols.length}`);
-  cols.forEach((c, i) =>
-    console.log(`[MONTHLY]   col[${i}]: ColType="${c.ColType}" ColTitle="${c.ColTitle}"`)
-  );
 
-  const monthCols = cols
+  // Log every column as full JSON so we can see exactly what the Total column looks like
+  console.log(`[MONTHLY] Raw column count: ${cols.length}`);
+  cols.forEach(c => console.log('[COL]', JSON.stringify(c)));
+
+  // All Money columns, preserving original array index — idx is used later as
+  // row.ColData[col.idx + 1], so indices must stay relative to the original cols array.
+  const allMoneyCols = cols
     .map((c, i) => ({ idx: i, label: c.ColTitle, type: c.ColType }))
-    .filter(c => c.type === 'Money' && /\b20\d{2}\b/.test(c.label));
+    .filter(c => c.type === 'Money');
+
+  // Safety net: QBO always places the YTD Total as the last Money column.
+  // If its title doesn't match the strict "MMM YYYY" pattern, flag it for
+  // unconditional exclusion regardless of whether the year regex also catches it.
+  const MONTH_TITLE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+20\d{2}$/;
+  const lastMoney = allMoneyCols[allMoneyCols.length - 1];
+  const totalColIdx = (lastMoney && !MONTH_TITLE.test(lastMoney.label)) ? lastMoney.idx : -1;
+  if (totalColIdx >= 0) {
+    console.log(`[MONTHLY] Safety net: excluding last Money col idx=${totalColIdx} label="${lastMoney.label}"`);
+  }
+
+  // Primary filter: year regex (\b20\d{2}\b) plus safety-net exclusion of the
+  // identified Total column. Both must pass.
+  const monthCols = allMoneyCols.filter(c =>
+    c.idx !== totalColIdx && /\b20\d{2}\b/.test(c.label)
+  );
 
   console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
   console.log('[MONTHLY] Excluded columns:', JSON.stringify(
-    cols.map((c, i) => ({ idx: i, type: c.ColType, title: c.ColTitle }))
-      .filter((_, i) => !monthCols.find(m => m.idx === i))
+    allMoneyCols.filter(c => !monthCols.includes(c))
   ));
 
   // Build per-month account values

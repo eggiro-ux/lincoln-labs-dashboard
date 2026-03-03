@@ -27,8 +27,12 @@ app.set('trust proxy', 1);
 app.get('/health', (req, res) => res.sendStatus(200));
 
 // ─── Session store ────────────────────────────────────────────────────────────
-// Using MemoryStore (express-session built-in, pure JS, no native addons).
-// Sessions reset on redeploy — users re-auth via QBO in one click.
+// Multi-user safety: express-session assigns each browser a unique session ID
+// (stored as a cookie). MemoryStore keeps each session in an isolated object
+// keyed by that ID, so req.session for User A is never visible to User B.
+// All per-user state (tokens, realmId, tokenExpiresAt, oauthState) lives on
+// req.session — there are zero module-level variables that hold auth data.
+// Sessions reset on redeploy; users re-auth via QBO in one click.
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
@@ -44,6 +48,9 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ─── OAuth client factory ─────────────────────────────────────────────────────
+// Multi-user safety: a fresh OAuthClient is created on every call — no singleton.
+// The intuit-oauth library holds mutable token state internally, so sharing one
+// instance across requests would leak one user's tokens to another.
 function makeOAuthClient() {
   return new OAuthClient({
     clientId: process.env.QBO_CLIENT_ID,
@@ -54,6 +61,7 @@ function makeOAuthClient() {
 }
 
 // ─── Auth middleware ──────────────────────────────────────────────────────────
+// Reads only from req.session — fully isolated per browser session.
 function requireAuth(req, res, next) {
   if (!req.session.tokens || !req.session.realmId) {
     return res.status(401).json({ error: 'Not authenticated', loginUrl: '/auth/login' });
@@ -62,16 +70,16 @@ function requireAuth(req, res, next) {
 }
 
 // ─── Auto-refresh tokens if expired ──────────────────────────────────────────
+// Reads and writes only req.session — no shared state touched.
 async function getValidTokens(req) {
-  const tokens = req.session.tokens;
+  const tokens    = req.session.tokens;
   const expiresAt = req.session.tokenExpiresAt || 0;
   if (Date.now() > expiresAt - 60000) {
-    // Refresh
-    const oauthClient = makeOAuthClient();
+    const oauthClient = makeOAuthClient(); // fresh client — no singleton
     oauthClient.setToken(tokens);
     const authResponse = await oauthClient.refreshUsingToken(tokens.refresh_token);
     const newTokens = authResponse.getJson();
-    req.session.tokens = newTokens;
+    req.session.tokens        = newTokens;
     req.session.tokenExpiresAt = Date.now() + (newTokens.expires_in * 1000);
     return newTokens;
   }
@@ -79,27 +87,48 @@ async function getValidTokens(req) {
 }
 
 // ─── Auth routes ──────────────────────────────────────────────────────────────
+
+// Generate a per-session CSRF state token, persist it in the session before
+// redirecting so the callback can verify it belongs to this exact session.
+// This prevents cross-session OAuth injection and ties each OAuth flow to the
+// browser session that initiated it.
 app.get('/auth/login', (req, res) => {
-  const oauthClient = makeOAuthClient();
-  const authUri = oauthClient.authorizeUri({
-    scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
-    state: Math.random().toString(36).substring(7),
+  const state = Math.random().toString(36).substring(2);
+  req.session.oauthState = state;
+  // Save the session before redirecting so the state is available when Intuit
+  // calls back (the browser sends the same session cookie on the return trip).
+  req.session.save(err => {
+    if (err) console.error('Session save error on login:', err);
+    const oauthClient = makeOAuthClient();
+    const authUri = oauthClient.authorizeUri({
+      scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
+      state,
+    });
+    res.redirect(authUri);
   });
-  res.redirect(authUri);
 });
 
 app.get('/auth/callback', async (req, res) => {
   try {
+    // Verify the state matches what this session generated — prevents CSRF and
+    // ensures the OAuth flow is completed by the same browser that started it.
+    const { state, realmId } = req.query;
+    if (!state || state !== req.session.oauthState) {
+      console.error('OAuth state mismatch — rejecting callback');
+      return res.redirect('/?error=auth_failed');
+    }
+    delete req.session.oauthState; // consumed; remove so it can't be replayed
+
     const oauthClient = makeOAuthClient();
     const authResponse = await oauthClient.createToken(req.url);
     const tokens = authResponse.getJson();
-    req.session.tokens = tokens;
-    req.session.realmId = req.query.realmId;
+    req.session.tokens         = tokens;
+    req.session.realmId        = realmId;
     req.session.tokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
-    // Explicitly wait for SQLite to commit before redirecting — avoids a race
-    // condition where the browser follows the redirect before the session is written.
+    // Wait for the session to be committed before redirecting — avoids a race
+    // where the browser arrives at "/" before req.session.tokens is persisted.
     req.session.save(err => {
-      if (err) console.error('Session save error:', err);
+      if (err) console.error('Session save error on callback:', err);
       res.redirect('/');
     });
   } catch (err) {
@@ -108,6 +137,7 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
+// Destroys only this user's session — all other sessions are unaffected.
 app.get('/auth/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/');

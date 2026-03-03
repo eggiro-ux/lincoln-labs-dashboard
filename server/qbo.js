@@ -71,13 +71,15 @@ function aggregateSeries(accountValues, expenseValues = {}) {
 // ─── /api/monthly — full historical P&L by month ─────────────────────────────
 // Returns { months: [...], series: { civille: [...], ... } }
 async function getMonthlyData(tokens, realmId) {
-  // End at last day of previous month so QBO never returns a partial current-month
-  // column. new Date(year, month, 0) gives the last day of the previous month.
+  // Use today as end_date so QBO returns every column including the current
+  // partial month. We filter the partial month out below by comparing each
+  // column's MetaData EndDate to the current calendar month — this keeps the
+  // original column indices intact so ColData[col.idx + 1] never shifts.
   const start = '2024-01-01';
   const today = new Date();
-  const lastDayPrevMonth = new Date(today.getFullYear(), today.getMonth(), 0);
-  const end = lastDayPrevMonth.toISOString().split('T')[0];
-  const todayStr = today.toISOString().split('T')[0];
+  const end = today.toISOString().split('T')[0];
+  // "YYYY-MM" string for the current month — used to exclude partial month columns.
+  const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
   const pl = await fetchPL(tokens, realmId, start, end, 'month');
 
@@ -111,14 +113,16 @@ async function getMonthlyData(tokens, realmId) {
   // Keep only columns that:
   //   1. Are not the safety-net Total column
   //   2. Have a year in the label (primary month filter)
-  //   3. Have MetaData EndDate strictly before today — a completed month's last day
-  //      is always before today; any partial month or YTD Total whose EndDate
-  //      equals today (when end_date was today) is excluded here.
-  let monthCols = allMoneyCols.filter(c =>
-    c.idx !== totalColIdx &&
-    /\b20\d{2}\b/.test(c.label) &&
-    (!c.endDate || c.endDate < todayStr)
-  );
+  //   3. Have a MetaData EndDate whose YYYY-MM is strictly before the current month.
+  //      Both the partial current-month column and the YTD Total column have an
+  //      EndDate in the current month, so this drops both in one pass.
+  //      Columns with no EndDate MetaData pass through (rely on label filter).
+  let monthCols = allMoneyCols.filter(c => {
+    if (c.idx === totalColIdx) return false;
+    if (!/\b20\d{2}\b/.test(c.label)) return false;
+    if (!c.endDate) return true;
+    return c.endDate.substring(0, 7) < currentYearMonth;
+  });
 
   // Hard check: if the last surviving column has no non-empty StartDate MetaData
   // it is almost certainly the YTD Total — remove it unconditionally.

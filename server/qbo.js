@@ -233,25 +233,14 @@ async function getMonthlyData(tokens, realmId) {
     return `${MONTH_NAMES[parseInt(mon, 10) - 1]} ${year}`;
   };
 
-  // Current calendar month as "YYYY-MM" — used to exclude the partial current month.
-  const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
-
-  // Build months and seriesArrays together in one pass so label and data for each
-  // column are always pushed atomically. Skip any column whose startDate falls in
-  // the current month (incomplete) or has no startDate but whose ColTitle month
-  // matches the current month. This replaces the fragile pop() approach which
-  // could leave months and series out of sync when extra columns are present.
+  // Build months and seriesArrays in one atomic pass — label and data are pushed
+  // together so indices are always aligned. All months (including the current
+  // incomplete month) are included; the frontend toggle controls visibility.
   const months = [];
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
 
   monthCols.forEach((col, i) => {
-    // Exclude current (incomplete) month: startDate "YYYY-MM-DD" → "YYYY-MM" >= currentYM
-    if (col.startDate && col.startDate.substring(0, 7) >= currentYM) {
-      console.log(`[MONTHLY] Skipping current/future month col: "${col.label}" startDate=${col.startDate}`);
-      return;
-    }
-
     const label = fmtLabel(col.startDate) || col.label;
     months.push(label);
 

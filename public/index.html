@@ -126,7 +126,10 @@
 
   <!-- Tab 1: Monthly Trend -->
   <div id="tab-trend" class="tab-content active">
-    <div class="legend" id="legend"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="legend" id="legend" style="margin-bottom:0;flex:1;"></div>
+      <button id="currentMonthToggle" class="btn" onclick="toggleCurrentMonth()" style="font-size:0.68rem;padding:7px 14px;white-space:nowrap;flex-shrink:0;margin-left:16px;">Show Current Month</button>
+    </div>
     <div class="chart-wrapper">
       <canvas id="trendChart"></canvas>
     </div>
@@ -175,6 +178,17 @@ let hidden = new Set();
 let hoveredMonth = null;
 let trendData = null;
 let periodData = null;
+let showCurrentMonth = false; // default: hide the current incomplete month
+
+function toggleCurrentMonth() {
+  showCurrentMonth = !showCurrentMonth;
+  const btn = document.getElementById('currentMonthToggle');
+  btn.textContent = showCurrentMonth ? 'Hide Current Month' : 'Show Current Month';
+  btn.style.borderColor = showCurrentMonth ? '#eab308' : '';
+  btn.style.color = showCurrentMonth ? '#eab308' : '';
+  buildStats();
+  drawTrendChart();
+}
 
 // ─── Formatting ───────────────────────────────────────────────────────────────
 function fmt(v) {
@@ -323,9 +337,9 @@ function buildLegend() {
 function buildStats() {
   const el = document.getElementById('statsRow');
   el.innerHTML = '';
-  const { series } = trendData;
   SERIES_CONFIG.forEach(s => {
-    const vals = (series[s.key] || []).filter(v => v !== null);
+    const raw = trendData.series[s.key] || [];
+    const vals = (showCurrentMonth ? raw : raw.slice(0, -1)).filter(v => v !== null);
     const latest = vals[vals.length - 1];
     const prev = vals[vals.length - 2];
     let pctDisplay = '';
@@ -362,7 +376,12 @@ const trendCtx = trendCanvas.getContext('2d');
 
 function drawTrendChart() {
   if (!trendData) return;
-  const { months, series } = trendData;
+  // Slice off the last (current, incomplete) month unless the toggle is on.
+  const months = showCurrentMonth ? trendData.months : trendData.months.slice(0, -1);
+  const series = {};
+  for (const key of Object.keys(trendData.series)) {
+    series[key] = showCurrentMonth ? trendData.series[key] : trendData.series[key].slice(0, -1);
+  }
   const n = months.length;
   const wrapper = trendCanvas.parentElement;
   const W = wrapper.clientWidth - 56;

@@ -244,9 +244,15 @@ async function getMonthlyData(tokens, realmId) {
     console.log('[MONTHLY] First month expense map:', JSON.stringify(monthlyExpense[0]));
   }
 
-  // monthCols already contains only fully completed months (partial month and YTD
-  // Total were excluded above). Build the series directly from monthCols.
-  const months = monthCols.map(col => col.label);
+  // Build month labels from MetaData StartDate ("YYYY-MM-DD" → "Mon YYYY") so
+  // the label always matches the data in that column, regardless of ColTitle.
+  const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const fmtLabel = isoDate => {
+    if (!isoDate) return null;
+    const [year, mon] = isoDate.split('-');
+    return `${MONTH_NAMES[parseInt(mon, 10) - 1]} ${year}`;
+  };
+  const months = monthCols.map(col => fmtLabel(col.startDate) || col.label);
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
 

@@ -78,8 +78,6 @@ async function getMonthlyData(tokens, realmId) {
   const start = '2024-01-01';
   const today = new Date();
   const end = today.toISOString().split('T')[0];
-  // "YYYY-MM" string for the current month — used to exclude partial month columns.
-  const currentYearMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
 
   const pl = await fetchPL(tokens, realmId, start, end, 'month');
 
@@ -110,27 +108,14 @@ async function getMonthlyData(tokens, realmId) {
     console.log(`[MONTHLY] Safety net: excluding last Money col idx=${totalColIdx} label="${lastMoney.label}"`);
   }
 
-  // Keep only columns that:
-  //   1. Are not the safety-net Total column
-  //   2. Have a year in the label (primary month filter)
-  //   3. Have a MetaData EndDate whose YYYY-MM is strictly before the current month.
-  //      Both the partial current-month column and the YTD Total column have an
-  //      EndDate in the current month, so this drops both in one pass.
-  //      Columns with no EndDate MetaData pass through (rely on label filter).
-  let monthCols = allMoneyCols.filter(c => {
-    if (c.idx === totalColIdx) return false;
-    if (!/\b20\d{2}\b/.test(c.label)) return false;
-    if (!c.endDate) return true;
-    return c.endDate.substring(0, 7) < currentYearMonth;
-  });
-
-  // Hard check: if the last surviving column has no non-empty StartDate MetaData
-  // it is almost certainly the YTD Total — remove it unconditionally.
-  if (monthCols.length > 0 && !monthCols[monthCols.length - 1].startDate) {
-    const dropped = monthCols[monthCols.length - 1];
-    console.log(`[MONTHLY] Hard check: removing last col (no StartDate) idx=${dropped.idx} label="${dropped.label}"`);
-    monthCols = monthCols.slice(0, -1);
-  }
+  // Keep month columns only — exclude the safety-net Total column and any
+  // column without a year in its label. Do NOT filter by EndDate here; the
+  // current partial month is removed by the pop() at the end of this function.
+  // (Filtering by EndDate + popping caused a double-removal: March dropped by
+  //  the date filter, then February dropped by pop — labels ended at January.)
+  const monthCols = allMoneyCols.filter(c =>
+    c.idx !== totalColIdx && /\b20\d{2}\b/.test(c.label)
+  );
 
   // Log every column — kept and dropped — so we can see exactly what's getting through
   monthCols.forEach(col =>

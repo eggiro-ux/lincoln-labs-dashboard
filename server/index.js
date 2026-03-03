@@ -15,6 +15,7 @@ const OAuthClient = require('intuit-oauth');
 const path = require('path');
 const { getMonthlyData, getCurrentPeriodData } = require('./qbo');
 const { handleAsk } = require('./ask');
+const tokenStore = require('./tokenStore');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -27,12 +28,10 @@ app.set('trust proxy', 1);
 app.get('/health', (req, res) => res.sendStatus(200));
 
 // ─── Session store ────────────────────────────────────────────────────────────
-// Multi-user safety: express-session assigns each browser a unique session ID
-// (stored as a cookie). MemoryStore keeps each session in an isolated object
-// keyed by that ID, so req.session for User A is never visible to User B.
-// All per-user state (tokens, realmId, tokenExpiresAt, oauthState) lives on
-// req.session — there are zero module-level variables that hold auth data.
-// Sessions reset on redeploy; users re-auth via QBO in one click.
+// Sessions are used only for:
+//   1. Dashboard password gate (req.session.dashboardAuthed)
+//   2. OAuth CSRF state during QBO connect flow (req.session.oauthState)
+// QBO tokens are NOT stored per-session — they live in the shared tokenStore.
 app.use(session({
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
@@ -48,57 +47,80 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../public')));
 
 // ─── OAuth client factory ─────────────────────────────────────────────────────
-// Multi-user safety: a fresh OAuthClient is created on every call — no singleton.
-// The intuit-oauth library holds mutable token state internally, so sharing one
-// instance across requests would leak one user's tokens to another.
+// A fresh OAuthClient per call — the library holds mutable token state so
+// never share one instance across requests.
 function makeOAuthClient() {
   return new OAuthClient({
-    clientId: process.env.QBO_CLIENT_ID,
+    clientId:     process.env.QBO_CLIENT_ID,
     clientSecret: process.env.QBO_CLIENT_SECRET,
-    environment: process.env.QBO_ENVIRONMENT || 'production',
-    redirectUri: process.env.QBO_REDIRECT_URI,
+    environment:  process.env.QBO_ENVIRONMENT || 'production',
+    redirectUri:  process.env.QBO_REDIRECT_URI,
   });
 }
 
-// ─── Auth middleware ──────────────────────────────────────────────────────────
-// Reads only from req.session — fully isolated per browser session.
-function requireAuth(req, res, next) {
-  if (!req.session.tokens || !req.session.realmId) {
-    return res.status(401).json({ error: 'Not authenticated', loginUrl: '/auth/login' });
+// ─── Middleware ───────────────────────────────────────────────────────────────
+
+// Dashboard password gate.
+// If DASHBOARD_PASSWORD is not set, the dashboard is open (dev / single-user).
+// If it is set, the session must have been marked dashboardAuthed.
+function requireDashboardAuth(req, res, next) {
+  const pwd = process.env.DASHBOARD_PASSWORD;
+  if (!pwd || req.session.dashboardAuthed) return next();
+  return res.status(401).json({ error: 'Dashboard login required' });
+}
+
+// QBO connection gate — used by API routes that need live QBO data.
+function requireQBO(req, res, next) {
+  if (!tokenStore.isConnected()) {
+    return res.status(503).json({ error: 'QuickBooks not connected', reconnectUrl: '/auth/qbo-login' });
   }
   next();
 }
 
-// ─── Auto-refresh tokens if expired ──────────────────────────────────────────
-// Reads and writes only req.session — no shared state touched.
-async function getValidTokens(req) {
-  const tokens    = req.session.tokens;
-  const expiresAt = req.session.tokenExpiresAt || 0;
-  if (Date.now() > expiresAt - 60000) {
-    const oauthClient = makeOAuthClient(); // fresh client — no singleton
-    oauthClient.setToken(tokens);
-    const authResponse = await oauthClient.refreshUsingToken(tokens.refresh_token);
-    const newTokens = authResponse.getJson();
-    req.session.tokens        = newTokens;
-    req.session.tokenExpiresAt = Date.now() + (newTokens.expires_in * 1000);
-    return newTokens;
+// ─── Dashboard auth routes ────────────────────────────────────────────────────
+
+// Returns combined status — frontend uses this on every load.
+app.get('/auth/status', (req, res) => {
+  const pwd = process.env.DASHBOARD_PASSWORD;
+  res.json({
+    dashboardAuthed: !pwd || !!req.session.dashboardAuthed,
+    qboConnected:    tokenStore.isConnected(),
+  });
+});
+
+// Password-gate login.
+app.post('/auth/dashboard-login', (req, res) => {
+  const pwd = process.env.DASHBOARD_PASSWORD;
+  if (!pwd) {
+    // No password configured — always authed
+    req.session.dashboardAuthed = true;
+    return res.json({ ok: true });
   }
-  return tokens;
-}
+  if (req.body.password === pwd) {
+    req.session.dashboardAuthed = true;
+    req.session.save(err => {
+      if (err) console.error('Session save error on dashboard login:', err);
+      res.json({ ok: true });
+    });
+  } else {
+    res.status(401).json({ error: 'Incorrect password' });
+  }
+});
 
-// ─── Auth routes ──────────────────────────────────────────────────────────────
+// Sign out of the dashboard (does NOT disconnect QBO).
+app.get('/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/');
+});
 
-// Generate a per-session CSRF state token, persist it in the session before
-// redirecting so the callback can verify it belongs to this exact session.
-// This prevents cross-session OAuth injection and ties each OAuth flow to the
-// browser session that initiated it.
-app.get('/auth/login', (req, res) => {
+// ─── QBO OAuth routes — only the QBO admin needs to use these ────────────────
+
+// Initiate QBO OAuth. Stores CSRF state in session so the callback can verify.
+app.get('/auth/qbo-login', (req, res) => {
   const state = Math.random().toString(36).substring(2);
   req.session.oauthState = state;
-  // Save the session before redirecting so the state is available when Intuit
-  // calls back (the browser sends the same session cookie on the return trip).
   req.session.save(err => {
-    if (err) console.error('Session save error on login:', err);
+    if (err) console.error('Session save error on qbo-login:', err);
     const oauthClient = makeOAuthClient();
     const authUri = oauthClient.authorizeUri({
       scope: [OAuthClient.scopes.Accounting, OAuthClient.scopes.OpenId],
@@ -110,8 +132,6 @@ app.get('/auth/login', (req, res) => {
 
 app.get('/auth/callback', async (req, res) => {
   try {
-    // Verify the state matches what this session generated — prevents CSRF and
-    // ensures the OAuth flow is completed by the same browser that started it.
     const { state, realmId } = req.query;
     if (!state || state !== req.session.oauthState) {
       console.error('OAuth state mismatch — rejecting callback');
@@ -122,11 +142,10 @@ app.get('/auth/callback', async (req, res) => {
     const oauthClient = makeOAuthClient();
     const authResponse = await oauthClient.createToken(req.url);
     const tokens = authResponse.getJson();
-    req.session.tokens         = tokens;
-    req.session.realmId        = realmId;
-    req.session.tokenExpiresAt = Date.now() + (tokens.expires_in * 1000);
-    // Wait for the session to be committed before redirecting — avoids a race
-    // where the browser arrives at "/" before req.session.tokens is persisted.
+
+    // Store in the shared singleton — all users will benefit immediately.
+    tokenStore.set(tokens, realmId);
+
     req.session.save(err => {
       if (err) console.error('Session save error on callback:', err);
       res.redirect('/');
@@ -137,23 +156,20 @@ app.get('/auth/callback', async (req, res) => {
   }
 });
 
-// Destroys only this user's session — all other sessions are unaffected.
-app.get('/auth/logout', (req, res) => {
-  req.session.destroy();
+// Disconnect QBO (clears the shared token store).
+app.get('/auth/qbo-logout', (req, res) => {
+  tokenStore.clear();
   res.redirect('/');
-});
-
-app.get('/auth/status', (req, res) => {
-  res.json({ authenticated: !!(req.session.tokens && req.session.realmId) });
 });
 
 // ─── API routes ───────────────────────────────────────────────────────────────
 
 // Historical monthly trend data
-app.get('/api/monthly', requireAuth, async (req, res) => {
+app.get('/api/monthly', requireDashboardAuth, requireQBO, async (req, res) => {
   try {
-    const tokens = await getValidTokens(req);
-    const data = await getMonthlyData(tokens, req.session.realmId);
+    const accessToken = await tokenStore.getAccessToken();
+    const tokens = { access_token: accessToken };
+    const data = await getMonthlyData(tokens, tokenStore.getRealmId());
     res.json(data);
   } catch (err) {
     console.error('/api/monthly error:', err.response?.data || err.message);
@@ -162,10 +178,11 @@ app.get('/api/monthly', requireAuth, async (req, res) => {
 });
 
 // Current period vs prior period same-day comparison
-app.get('/api/current-period', requireAuth, async (req, res) => {
+app.get('/api/current-period', requireDashboardAuth, requireQBO, async (req, res) => {
   try {
-    const tokens = await getValidTokens(req);
-    const data = await getCurrentPeriodData(tokens, req.session.realmId);
+    const accessToken = await tokenStore.getAccessToken();
+    const tokens = { access_token: accessToken };
+    const data = await getCurrentPeriodData(tokens, tokenStore.getRealmId());
     res.json(data);
   } catch (err) {
     console.error('/api/current-period error:', err.response?.data || err.message);
@@ -174,14 +191,15 @@ app.get('/api/current-period', requireAuth, async (req, res) => {
 });
 
 // AI-powered natural-language query against QBO data
-app.post('/api/ask', requireAuth, async (req, res) => {
+app.post('/api/ask', requireDashboardAuth, requireQBO, async (req, res) => {
   try {
-    const tokens = await getValidTokens(req);
+    const accessToken = await tokenStore.getAccessToken();
+    const tokens = { access_token: accessToken };
     const { question, clarifyingAnswers } = req.body;
     if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
     const result = await handleAsk(
       tokens,
-      req.session.realmId,
+      tokenStore.getRealmId(),
       question.trim(),
       clarifyingAnswers || null,
     );

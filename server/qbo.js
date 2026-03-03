@@ -98,24 +98,19 @@ async function getMonthlyData(tokens, realmId) {
     })
     .filter(c => c.type === 'Money');
 
-  // Safety net: QBO places the YTD Total as the last Money column.
-  // If its title doesn't match the strict "MMM YYYY" pattern, flag it for
-  // unconditional exclusion regardless of whether other filters also catch it.
-  const MONTH_TITLE = /^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+20\d{2}$/;
-  const lastMoney = allMoneyCols[allMoneyCols.length - 1];
-  const totalColIdx = (lastMoney && !MONTH_TITLE.test(lastMoney.label)) ? lastMoney.idx : -1;
-  if (totalColIdx >= 0) {
-    console.log(`[MONTHLY] Safety net: excluding last Money col idx=${totalColIdx} label="${lastMoney.label}"`);
-  }
-
-  // Keep month columns only — exclude the safety-net Total column and any
-  // column without a year in its label. Do NOT filter by EndDate here; the
-  // current partial month is removed by the pop() at the end of this function.
-  // (Filtering by EndDate + popping caused a double-removal: March dropped by
-  //  the date filter, then February dropped by pop — labels ended at January.)
-  const monthCols = allMoneyCols.filter(c =>
-    c.idx !== totalColIdx && /\b20\d{2}\b/.test(c.label)
-  );
+  // Identify real single-month columns by a structural property of the MetaData:
+  // a genuine month column always has startDate and endDate within the SAME
+  // calendar month ("YYYY-MM"). The YTD Total column spans the full report range
+  // (e.g. "2024-01" → "2026-03"), so its start/end months differ — this is the
+  // only reliable way to exclude it regardless of what label QBO assigns it.
+  const monthCols = allMoneyCols.filter(c => {
+    if (c.startDate && c.endDate) {
+      // Primary: same-month start/end = real month column
+      return c.startDate.substring(0, 7) === c.endDate.substring(0, 7);
+    }
+    // Fallback for columns without MetaData: require a year in the label
+    return /\b20\d{2}\b/.test(c.label);
+  });
 
   // Log every column — kept and dropped — so we can see exactly what's getting through
   monthCols.forEach(col =>

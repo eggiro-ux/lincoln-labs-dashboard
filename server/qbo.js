@@ -128,12 +128,15 @@ async function getMonthlyData(tokens, realmId) {
     monthCols = monthCols.slice(0, -1);
   }
 
-  console.log('[MONTHLY] Included month columns:', JSON.stringify(monthCols));
-  console.log('[MONTHLY] Excluded columns:', JSON.stringify(
-    allMoneyCols.filter(c => !monthCols.includes(c))
-  ));
-  // Log every surviving column with its full MetaData so we can see exactly what's getting through
-  monthCols.forEach(col => console.log('[KEPT COL]', col.label, JSON.stringify(cols[col.idx]?.MetaData ?? null)));
+  // Log every column — kept and dropped — so we can see exactly what's getting through
+  monthCols.forEach(col =>
+    console.log('[KEPT COL]', col.label, JSON.stringify(cols[col.idx]?.MetaData ?? null))
+  );
+  allMoneyCols
+    .filter(c => !monthCols.includes(c))
+    .forEach(col =>
+      console.log('[DROPPED COL]', col.label, JSON.stringify(cols[col.idx]?.MetaData ?? null))
+    );
 
   // Build per-month account values
   const rows = pl.Rows?.Row || [];
@@ -154,9 +157,17 @@ async function getMonthlyData(tokens, realmId) {
     for (const row of rows) {
       if (row.type === 'Section') {
         const sectionName = row.Header?.ColData?.[0]?.value || section;
-        const isCOGS = sectionName.toLowerCase().includes('cost of goods') ||
-                       sectionName.toLowerCase().includes('offshore labor');
-        console.log(`[MONTHLY] Entering section "${sectionName}" isCOGS=${isCOGS}, child rows: ${row.Rows?.Row?.length ?? 0}`);
+        const nameLower = sectionName.toLowerCase();
+        // A section is income ONLY if its name explicitly signals income/revenue.
+        // Everything else — "Expenses", "Cost of Goods Sold", "Offshore Labor", etc. —
+        // is treated as an expense context. This prevents Expenses sub-sections
+        // (e.g. a "Civille" labour bucket) from having their Summary rows accumulated
+        // into monthlyIncome alongside the real Income > Civille revenue.
+        const isIncome = nameLower.includes('income') ||
+                         nameLower.includes('revenue') ||
+                         nameLower.includes('sales');
+        const isCOGS = !isIncome;
+        console.log(`[MONTHLY] Entering section "${sectionName}" isIncome=${isIncome} isCOGS=${isCOGS}, child rows: ${row.Rows?.Row?.length ?? 0}`);
         if (row.Rows?.Row) processRowsInner(row.Rows.Row, isCOGS, sectionName);
       }
     }

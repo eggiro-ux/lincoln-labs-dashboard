@@ -180,6 +180,12 @@ let trendData = null;
 let periodData = null;
 let showCurrentMonth = false; // default: hide the current incomplete month
 
+// The subset of trendData that was actually rendered (respects showCurrentMonth slice).
+// Tooltip and hover-index math must use these — not raw trendData — so labels and
+// values are always in sync with what the user sees.
+let displayedMonths = [];
+let displayedSeries = {};
+
 function toggleCurrentMonth() {
   showCurrentMonth = !showCurrentMonth;
   const btn = document.getElementById('currentMonthToggle');
@@ -205,6 +211,47 @@ function fmtK(v) {
   if (abs >= 100000)  return sign + '$' + Math.round(abs/1000) + 'K';
   if (abs >= 1000)    return sign + '$' + (abs/1000).toFixed(1) + 'K';
   return sign + '$' + abs.toFixed(0);
+}
+
+// ─── Sum/Total column guard ───────────────────────────────────────────────────
+// Even if the backend filter misses a YTD/Total column, this removes any position
+// in the months+series arrays where a value is more than 5× the series median.
+// That is structurally impossible for a real single-month column and reliably
+// identifies an accumulated sum column.
+function cleanSumColumns(data) {
+  const { months, series } = data;
+  const n = months.length;
+  if (n === 0) return data;
+
+  // Per-series median (ignoring nulls/NaN)
+  const medians = {};
+  for (const key of Object.keys(series)) {
+    const vals = (series[key] || []).filter(v => v != null && !isNaN(v));
+    if (!vals.length) { medians[key] = 0; continue; }
+    const sorted = [...vals].sort((a, b) => a - b);
+    const m = Math.floor(sorted.length / 2);
+    medians[key] = sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+  }
+
+  const valid = [];
+  for (let i = 0; i < n; i++) {
+    const isOutlier = Object.keys(series).some(key => {
+      const v = series[key][i];
+      const med = medians[key];
+      return v != null && med > 0 && Math.abs(v) > 5 * Math.abs(med);
+    });
+    if (!isOutlier) valid.push(i);
+  }
+
+  if (valid.length === n) return data; // nothing removed
+  console.log('[cleanSumColumns] Removed', n - valid.length, 'outlier position(s):', months.filter((_, i) => !valid.includes(i)));
+  return {
+    ...data,
+    months: valid.map(i => months[i]),
+    series: Object.fromEntries(
+      Object.entries(series).map(([k, arr]) => [k, valid.map(i => arr[i])])
+    ),
+  };
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -286,7 +333,7 @@ async function loadAll() {
       throw new Error(monthly.error || current.error);
     }
 
-    trendData = monthly;
+    trendData = cleanSumColumns(monthly);
     periodData = current;
 
     document.getElementById('loadingState').style.display = 'none';
@@ -382,6 +429,9 @@ function drawTrendChart() {
   for (const key of Object.keys(trendData.series)) {
     series[key] = showCurrentMonth ? trendData.series[key] : trendData.series[key].slice(0, -1);
   }
+  // Keep a reference so the tooltip always reads from the same slice that was drawn.
+  displayedMonths = months;
+  displayedSeries = series;
   const n = months.length;
   const wrapper = trendCanvas.parentElement;
   const W = wrapper.clientWidth - 56;
@@ -474,7 +524,7 @@ let trendHitPoints = [];
 trendCanvas.addEventListener('mousemove', e => {
   const rect = trendCanvas.getBoundingClientRect();
   const mx = e.clientX - rect.left;
-  const n = trendData?.months?.length || 1;
+  const n = displayedMonths.length || 1;
   const plotW = trendCanvas.clientWidth - MARGIN.left - MARGIN.right;
   let closest = null, minDist = Infinity;
   for (let i = 0; i < n; i++) {
@@ -493,12 +543,12 @@ trendCanvas.addEventListener('mousemove', e => {
 trendCanvas.addEventListener('mouseleave', () => { hoveredMonth = null; drawTrendChart(); hideTooltip(); });
 
 function showTooltip(mx, my, i) {
-  document.getElementById('ttMonth').textContent = trendData.months[i];
+  document.getElementById('ttMonth').textContent = displayedMonths[i];
   const rows = document.getElementById('ttRows');
   rows.innerHTML = '';
   SERIES_CONFIG.forEach(s => {
     if (hidden.has(s.key)) return;
-    const v = (trendData.series[s.key] || [])[i];
+    const v = (displayedSeries[s.key] || [])[i];
     if (v === null || v === undefined) return;
     const row = document.createElement('div');
     row.className = 'tt-row';

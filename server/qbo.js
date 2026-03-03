@@ -98,19 +98,14 @@ async function getMonthlyData(tokens, realmId) {
     })
     .filter(c => c.type === 'Money');
 
-  // Identify real single-month columns by a structural property of the MetaData:
-  // a genuine month column always has startDate and endDate within the SAME
-  // calendar month ("YYYY-MM"). The YTD Total column spans the full report range
-  // (e.g. "2024-01" → "2026-03"), so its start/end months differ — this is the
-  // only reliable way to exclude it regardless of what label QBO assigns it.
-  const monthCols = allMoneyCols.filter(c => {
-    if (c.startDate && c.endDate) {
-      // Primary: same-month start/end = real month column
-      return c.startDate.substring(0, 7) === c.endDate.substring(0, 7);
-    }
-    // Fallback for columns without MetaData: require a year in the label
-    return /\b20\d{2}\b/.test(c.label);
-  });
+  // Only keep columns that have BOTH startDate and endDate in the same calendar
+  // month ("YYYY-MM"). The YTD/Total column always has start/end in different
+  // months (e.g. "2024-01" → "2026-03"). Columns with missing MetaData are also
+  // excluded — they are always synthetic summary columns, never real months.
+  const monthCols = allMoneyCols.filter(c =>
+    c.startDate && c.endDate &&
+    c.startDate.substring(0, 7) === c.endDate.substring(0, 7)
+  );
 
   // Log every column — kept and dropped — so we can see exactly what's getting through
   monthCols.forEach(col =>

@@ -14,6 +14,7 @@ const session = require('express-session');
 const OAuthClient = require('intuit-oauth');
 const path = require('path');
 const { getMonthlyData, getCurrentPeriodData } = require('./qbo');
+const { handleAsk } = require('./ask');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -139,6 +140,25 @@ app.get('/api/current-period', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('/api/current-period error:', err.response?.data || err.message);
     res.status(500).json({ error: 'Failed to fetch current period data', detail: err.message });
+  }
+});
+
+// AI-powered natural-language query against QBO data
+app.post('/api/ask', requireAuth, async (req, res) => {
+  try {
+    const tokens = await getValidTokens(req);
+    const { question, clarifyingAnswers } = req.body;
+    if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
+    const result = await handleAsk(
+      tokens,
+      req.session.realmId,
+      question.trim(),
+      clarifyingAnswers || null,
+    );
+    res.json(result);
+  } catch (err) {
+    console.error('/api/ask error:', err.message);
+    res.status(500).json({ error: err.message });
   }
 });
 

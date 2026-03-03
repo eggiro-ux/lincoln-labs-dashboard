@@ -79,6 +79,60 @@
   .period-legend-item { display: flex; align-items: center; gap: 8px; }
   .period-legend-swatch { width: 24px; height: 10px; border-radius: 2px; }
 
+  /* ── Ask tab ──────────────────────────────────────────────────────────────── */
+  .ask-input-wrap { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 18px; }
+  .ask-input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-family: 'DM Mono', monospace; font-size: 0.8rem;
+    padding: 14px 16px; resize: none; outline: none; transition: border-color 0.2s;
+    line-height: 1.5;
+  }
+  .ask-input:focus { border-color: var(--muted); }
+  .ask-input::placeholder { color: var(--muted); }
+  .ask-submit { align-self: stretch; padding: 0 24px; background: var(--surface);
+    border: 1px solid #4ade80; color: #4ade80; font-family: 'DM Mono', monospace;
+    font-size: 0.75rem; letter-spacing: 0.06em; cursor: pointer; transition: background 0.15s;
+    white-space: nowrap; }
+  .ask-submit:hover { background: #4ade8012; }
+  .ask-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .ask-examples { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 32px; }
+  .ask-examples-lbl { font-size: 0.63rem; letter-spacing: 0.1em; text-transform: uppercase;
+    color: var(--muted); flex-shrink: 0; margin-right: 4px; }
+  .ask-chip { background: none; border: 1px solid var(--border); color: var(--muted);
+    font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 6px 13px;
+    cursor: pointer; transition: border-color 0.15s, color 0.15s; }
+  .ask-chip:hover { border-color: var(--muted); color: var(--text); }
+
+  .ask-loading { display: flex; align-items: center; gap: 14px; padding: 32px 0; }
+  .ask-loading p { font-size: 0.75rem; color: var(--muted); letter-spacing: 0.05em; }
+
+  .ask-result-meta { font-size: 0.68rem; color: var(--muted); letter-spacing: 0.05em;
+    padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+  .ask-result-meta strong { color: var(--text); }
+  .ask-answer-text { font-size: 0.82rem; line-height: 1.75; color: var(--text); margin-bottom: 20px; }
+
+  .ask-number-val { font-family: 'Fraunces', serif; font-weight: 600; font-size: 3.8rem;
+    letter-spacing: -0.03em; line-height: 1; color: #4ade80; }
+  .ask-number-lbl { font-size: 0.72rem; color: var(--muted); margin-top: 10px; letter-spacing: 0.05em; }
+
+  .ask-table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+  .ask-table th { text-align: left; padding: 9px 14px; font-size: 0.63rem;
+    letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted);
+    border-bottom: 1px solid var(--border); white-space: nowrap; }
+  .ask-table td { padding: 9px 14px; border-bottom: 1px solid #1e1e1c; color: var(--text); }
+  .ask-table tr:last-child td { border-bottom: none; }
+  .ask-table tr:hover td { background: #1d1d1b; }
+
+  .ask-clarify-lbl { font-size: 0.72rem; color: var(--muted); margin-bottom: 14px; }
+  .ask-clarify-opts { display: flex; flex-direction: column; gap: 8px; max-width: 560px; }
+  .ask-clarify-btn { background: none; border: 1px solid var(--border); color: var(--text);
+    font-family: 'DM Mono', monospace; font-size: 0.74rem; padding: 11px 16px;
+    cursor: pointer; text-align: left; transition: border-color 0.15s; }
+  .ask-clarify-btn:hover { border-color: var(--muted); }
+
+  .ask-error { color: #f87171; font-size: 0.8rem; padding: 16px 0; line-height: 1.6; }
+
   /* Tooltip */
   #tooltip { position: fixed; pointer-events: none; opacity: 0; transition: opacity 0.12s; z-index: 100; background: #111110; border: 1px solid var(--border); padding: 12px 16px; min-width: 240px; }
   #tooltip.visible { opacity: 1; }
@@ -122,6 +176,7 @@
   <div class="tabs">
     <div class="tab active" data-tab="trend">Monthly Trend</div>
     <div class="tab" data-tab="current">Current Period</div>
+    <div class="tab" data-tab="ask">Ask</div>
   </div>
 
   <!-- Tab 1: Monthly Trend -->
@@ -155,6 +210,35 @@
     <div class="chart-wrapper">
       <canvas id="comparisonChart"></canvas>
     </div>
+  </div>
+  <!-- Tab 3: Ask -->
+  <div id="tab-ask" class="tab-content">
+    <div class="ask-input-wrap">
+      <textarea
+        id="askInput"
+        class="ask-input"
+        rows="2"
+        placeholder="Ask anything about your QuickBooks data…"
+      ></textarea>
+      <button id="askSubmitBtn" class="ask-submit" onclick="submitAsk()">Ask →</button>
+    </div>
+
+    <div class="ask-examples" id="askExamples">
+      <span class="ask-examples-lbl">Try:</span>
+      <button class="ask-chip" onclick="useChip(this)">What was our total revenue last month?</button>
+      <button class="ask-chip" onclick="useChip(this)">Show revenue by product line for 2026</button>
+      <button class="ask-chip" onclick="useChip(this)">AwesomeAPI revenue trend this year</button>
+      <button class="ask-chip" onclick="useChip(this)">Are there any unpaid invoices?</button>
+      <button class="ask-chip" onclick="useChip(this)">How does January compare to February?</button>
+      <button class="ask-chip" onclick="useChip(this)">What is our year-to-date revenue?</button>
+    </div>
+
+    <div class="ask-loading" id="askLoading" style="display:none">
+      <div class="spinner"></div>
+      <p>Analyzing your question…</p>
+    </div>
+
+    <div id="askResult"></div>
   </div>
 </div>
 
@@ -667,8 +751,296 @@ compCanvas.addEventListener('mousemove', e => {
 });
 compCanvas.addEventListener('mouseleave', hideTooltip);
 
-window.addEventListener('resize', () => { drawTrendChart(); drawComparisonChart(); });
+window.addEventListener('resize', () => {
+  drawTrendChart();
+  drawComparisonChart();
+  if (document.getElementById('askChartCanvas')) drawAskChart(_lastAskChartData);
+});
 loadAll();
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ─── ASK TAB ─────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const ASK_COLORS = ['#22c55e','#eab308','#a855f7','#3b82f6','#e5e5e5','#f87171','#fb923c','#34d399'];
+let _lastAskChartData = null;
+let _lastAskQuestion  = '';
+
+// ─── Tab: handle tab switch to ensure chart redraws ──────────────────────────
+// (extend existing tab listener)
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    if (tab.dataset.tab === 'ask' && _lastAskChartData) {
+      requestAnimationFrame(() => drawAskChart(_lastAskChartData));
+    }
+  });
+});
+
+// ─── Keyboard: Enter submits, Shift+Enter inserts newline ────────────────────
+document.getElementById('askInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitAsk(); }
+});
+
+function useChip(btn) {
+  document.getElementById('askInput').value = btn.textContent;
+  submitAsk();
+}
+
+// ─── Submit ───────────────────────────────────────────────────────────────────
+async function submitAsk() {
+  const input    = document.getElementById('askInput');
+  const question = input.value.trim();
+  if (!question) return;
+  _lastAskQuestion = question;
+  _askSetLoading(true);
+
+  try {
+    const res  = await fetch('/api/ask', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ question }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _renderAskResult(data, question);
+  } catch (err) {
+    _renderAskError(err.message);
+  }
+}
+
+async function _submitWithClarification(originalQuestion, selectedAnswer) {
+  _askSetLoading(true);
+  try {
+    const res  = await fetch('/api/ask', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ question: originalQuestion, clarifyingAnswers: selectedAnswer }),
+    });
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    _renderAskResult(data, originalQuestion + ' — ' + selectedAnswer);
+  } catch (err) {
+    _renderAskError(err.message);
+  }
+}
+
+// ─── Loading state ────────────────────────────────────────────────────────────
+function _askSetLoading(on) {
+  document.getElementById('askLoading').style.display  = on ? 'flex' : 'none';
+  document.getElementById('askResult').innerHTML       = '';
+  document.getElementById('askExamples').style.display = on ? 'none' : 'flex';
+  document.getElementById('askSubmitBtn').disabled     = on;
+  _lastAskChartData = null;
+}
+
+// ─── Render helpers ───────────────────────────────────────────────────────────
+function _esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function _renderAskResult(data, question) {
+  document.getElementById('askLoading').style.display = 'none';
+  document.getElementById('askSubmitBtn').disabled    = false;
+  const el = document.getElementById('askResult');
+
+  // ── Clarifying questions ──────────────────────────────────────────────────
+  if (data.type === 'clarifying') {
+    el.innerHTML = `
+      <div class="ask-result-meta"><strong>Q:</strong> ${_esc(question)}</div>
+      <p class="ask-clarify-lbl">I have a few questions before I can pull the right data — click one:</p>
+      <div class="ask-clarify-opts">
+        ${data.questions.map(q => `
+          <button class="ask-clarify-btn"
+            onclick="_submitWithClarification(${JSON.stringify(data.question)}, ${JSON.stringify(q)})">
+            ${_esc(q)}
+          </button>`).join('')}
+      </div>`;
+    return;
+  }
+
+  // ── Answer ────────────────────────────────────────────────────────────────
+  let body = '';
+
+  if (data.answer) {
+    body += `<p class="ask-answer-text">${_esc(data.answer)}</p>`;
+  }
+
+  switch (data.visualization) {
+    case 'number':
+      body += `
+        <div style="padding:28px 0 20px;">
+          <div class="ask-number-val">${fmt(data.value)}</div>
+          ${data.label ? `<div class="ask-number-lbl">${_esc(data.label)}</div>` : ''}
+        </div>`;
+      break;
+
+    case 'table':
+      if (data.columns?.length && data.rows?.length) {
+        body += `
+          <div style="overflow-x:auto;margin-top:4px;">
+            <table class="ask-table">
+              <thead><tr>
+                ${data.columns.map(c => `<th>${_esc(c)}</th>`).join('')}
+              </tr></thead>
+              <tbody>
+                ${data.rows.map(row =>
+                  `<tr>${row.map(cell => `<td>${_esc(String(cell ?? '—'))}</td>`).join('')}</tr>`
+                ).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      }
+      break;
+
+    case 'bar':
+    case 'line':
+      body += `<div class="chart-wrapper" style="margin-top:8px;">
+                 <canvas id="askChartCanvas"></canvas>
+               </div>`;
+      break;
+  }
+
+  el.innerHTML = `
+    <div class="ask-result-meta"><strong>Q:</strong> ${_esc(question)}</div>
+    ${body}`;
+
+  if ((data.visualization === 'bar' || data.visualization === 'line') && data.data?.length) {
+    _lastAskChartData = data;
+    requestAnimationFrame(() => drawAskChart(data));
+  }
+}
+
+function _renderAskError(msg) {
+  document.getElementById('askLoading').style.display  = 'none';
+  document.getElementById('askSubmitBtn').disabled     = false;
+  document.getElementById('askExamples').style.display = 'flex';
+  document.getElementById('askResult').innerHTML =
+    `<div class="ask-error">Error: ${_esc(msg)}</div>`;
+}
+
+// ─── Ask chart (bar + line) ───────────────────────────────────────────────────
+function drawAskChart(data) {
+  const canvas = document.getElementById('askChartCanvas');
+  if (!canvas || !data?.data?.length) return;
+  const ctx = canvas.getContext('2d');
+
+  const points     = data.data;
+  const seriesKeys = [...new Set(points.flatMap(p => Object.keys(p.values || {})))];
+  const labels     = points.map(p => p.label);
+  const n          = labels.length;
+  if (!n || !seriesKeys.length) return;
+
+  const M  = { top: 28, right: 32, bottom: 52, left: 74 };
+  const W  = (canvas.parentElement.clientWidth - 56) || 600;
+  const H  = Math.max(300, Math.round(W * 0.36));
+  canvas.width  = W * devicePixelRatio;
+  canvas.height = H * devicePixelRatio;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.scale(devicePixelRatio, devicePixelRatio);
+
+  const plotW = W - M.left - M.right;
+  const plotH = H - M.top  - M.bottom;
+  ctx.clearRect(0, 0, W, H);
+
+  // Y scale
+  let yMax = 0, yMin = 0;
+  points.forEach(p => Object.values(p.values || {}).forEach(v => {
+    yMax = Math.max(yMax, v); yMin = Math.min(yMin, v);
+  }));
+  yMax = Math.ceil((yMax * 1.1) / 10000) * 10000 || 100000;
+  yMin = yMin < 0 ? Math.floor((yMin * 1.1) / 10000) * 10000 : 0;
+  const yRange = yMax - yMin || 100000;
+
+  const mag      = Math.pow(10, Math.floor(Math.log10(yRange / 5)));
+  const niceStep = [1,2,5,10].map(f => f * mag).find(s => yRange / s <= 8) || mag * 10;
+
+  ctx.font = `10px 'DM Mono', monospace`;
+  for (let t = yMin; t <= yMax; t += niceStep) {
+    const y = M.top + plotH - ((t - yMin) / yRange) * plotH;
+    ctx.strokeStyle = t === 0 ? '#3a3a37' : '#2a2a27';
+    ctx.lineWidth   = t === 0 ? 1.5 : 1;
+    ctx.beginPath(); ctx.moveTo(M.left, y); ctx.lineTo(M.left + plotW, y); ctx.stroke();
+    ctx.fillStyle = '#7a7870'; ctx.textAlign = 'right';
+    ctx.fillText(fmtK(t), M.left - 8, y + 3.5);
+  }
+
+  if (data.visualization === 'bar') {
+    // Grouped bars
+    const groupW = plotW / n;
+    const pad    = groupW * 0.1;
+    const barW   = Math.max(1, (groupW - pad * 2) / seriesKeys.length - 1);
+    const zero   = M.top + plotH - ((0 - yMin) / yRange) * plotH;
+
+    points.forEach((p, gi) => {
+      seriesKeys.forEach((key, ki) => {
+        const v     = p.values[key] ?? 0;
+        const color = ASK_COLORS[ki % ASK_COLORS.length];
+        const x     = M.left + gi * groupW + pad + ki * (barW + 1);
+        const barTop = M.top + plotH - ((Math.max(v, yMin) - yMin) / yRange) * plotH;
+        const barH  = Math.abs((v / yRange) * plotH);
+        ctx.fillStyle   = color;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(x, Math.min(barTop, zero), barW, Math.max(barH, 1));
+        ctx.globalAlpha = 1;
+      });
+      // X label
+      ctx.fillStyle = '#7a7870'; ctx.textAlign = 'center';
+      const lx    = M.left + gi * groupW + groupW / 2;
+      const parts = p.label.replace(' 20', '\n20').split('\n');
+      parts.forEach((pt, pi) => ctx.fillText(pt, lx, H - M.bottom + 16 + pi * 13));
+    });
+
+  } else {
+    // Line chart
+    seriesKeys.forEach((key, ki) => {
+      const color = ASK_COLORS[ki % ASK_COLORS.length];
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash([]);
+      ctx.beginPath();
+      let started = false;
+      points.forEach((p, i) => {
+        const v = p.values[key];
+        if (v == null) return;
+        const x = M.left + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+        const y = M.top + plotH - ((v - yMin) / yRange) * plotH;
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+      points.forEach((p, i) => {
+        const v = p.values[key];
+        if (v == null) return;
+        const x = M.left + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+        const y = M.top + plotH - ((v - yMin) / yRange) * plotH;
+        ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#191917'; ctx.strokeStyle = color; ctx.lineWidth = 2;
+        ctx.fill(); ctx.stroke();
+      });
+    });
+    // X axis labels
+    const step = Math.ceil(n / 18);
+    ctx.fillStyle = '#7a7870'; ctx.textAlign = 'center';
+    labels.forEach((lbl, i) => {
+      if (i % step !== 0 && i !== n - 1) return;
+      const x = M.left + (n > 1 ? (i / (n - 1)) * plotW : plotW / 2);
+      lbl.replace(' 20', '\n20').split('\n').forEach((pt, pi) =>
+        ctx.fillText(pt, x, H - M.bottom + 16 + pi * 13));
+    });
+  }
+
+  // Series legend (top-left)
+  let lx = M.left;
+  const ly = M.top - 12;
+  seriesKeys.forEach((key, ki) => {
+    const color = ASK_COLORS[ki % ASK_COLORS.length];
+    ctx.fillStyle = color;
+    ctx.beginPath(); ctx.arc(lx + 5, ly, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#7a7870'; ctx.textAlign = 'left';
+    ctx.fillText(key, lx + 14, ly + 3.5);
+    lx += ctx.measureText(key).width + 28;
+  });
+}
 </script>
 </body>
 </html>

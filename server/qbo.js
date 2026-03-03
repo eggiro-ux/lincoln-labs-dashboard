@@ -74,7 +74,7 @@ async function getMonthlyData(tokens, realmId) {
   // Use today as end_date so QBO returns every column including the current
   // partial month. We filter the partial month out below by comparing each
   // column's MetaData EndDate to the current calendar month — this keeps the
-  // original column indices intact so ColData[col.idx + 1] never shifts.
+  // original column indices intact so ColData[col.idx + colDataOffset] never shifts.
   const start = '2024-01-01';
   const today = new Date();
   const end = today.toISOString().split('T')[0];
@@ -88,8 +88,17 @@ async function getMonthlyData(tokens, realmId) {
   console.log(`[MONTHLY] Raw column count: ${cols.length}`);
   cols.forEach(c => console.log('[COL]', JSON.stringify(c)));
 
+  // Determine ColData offset for value extraction.
+  // QBO sometimes includes an Account-type column as Columns.Column[0].
+  // When it does, ColData[k] maps to Columns.Column[k] directly (offset 0).
+  // When there is no Account column, ColData[0] is an implicit row label and
+  // ColData[k+1] maps to Columns.Column[k] (offset 1).
+  const hasAccountCol = cols.some(c => c.ColType === 'Account');
+  const colDataOffset = hasAccountCol ? 0 : 1;
+  console.log(`[MONTHLY] hasAccountCol=${hasAccountCol} colDataOffset=${colDataOffset}`);
+
   // All Money columns, preserving original array index and extracting MetaData dates.
-  // idx is used as row.ColData[col.idx + 1] so must stay relative to original cols array.
+  // idx is used as row.ColData[col.idx + colDataOffset] so must stay relative to original cols array.
   const allMoneyCols = cols
     .map((c, i) => {
       const meta = {};
@@ -171,10 +180,10 @@ async function getMonthlyData(tokens, realmId) {
         if (row.Summary?.ColData) {
           const summaryName = row.Summary.ColData[0]?.value;
           if (summaryName) {
-            const firstColRaw = monthCols[0] ? row.Summary.ColData[monthCols[0].idx + 1] : null;
+            const firstColRaw = monthCols[0] ? row.Summary.ColData[monthCols[0].idx + colDataOffset] : null;
             console.log(`[MONTHLY]   Summary "${summaryName}" under "${parentSection}" isCOGS=${stillCOGS} | firstMonthCol="${firstColRaw?.value}"`);
             monthCols.forEach((col, i) => {
-              const val = parseFloat(row.Summary.ColData[col.idx + 1]?.value || '0');
+              const val = parseFloat(row.Summary.ColData[col.idx + colDataOffset]?.value || '0');
               if (stillCOGS) {
                 monthlyExpense[i][summaryName] = (monthlyExpense[i][summaryName] || 0) + val;
                 allSeenExpenseNames.add(summaryName);
@@ -190,10 +199,10 @@ async function getMonthlyData(tokens, realmId) {
       if (row.type === 'Data' && row.ColData) {
         const name = row.ColData[0]?.value;
         if (!name) continue;
-        const firstColRaw = monthCols[0] ? row.ColData[monthCols[0].idx + 1] : null;
-        console.log(`[MONTHLY]   Data row "${name}" under "${parentSection}" isCOGS=${isCOGS} | ColData length=${row.ColData.length} | firstMonthCol idx=${monthCols[0]?.idx} → ColData[${monthCols[0]?.idx}+1]="${firstColRaw?.value}"`);
+        const firstColRaw = monthCols[0] ? row.ColData[monthCols[0].idx + colDataOffset] : null;
+        console.log(`[MONTHLY]   Data row "${name}" under "${parentSection}" isCOGS=${isCOGS} | ColData length=${row.ColData.length} | firstMonthCol idx=${monthCols[0]?.idx} → ColData[${monthCols[0]?.idx}+${colDataOffset}]="${firstColRaw?.value}"`);
         monthCols.forEach((col, i) => {
-          const val = parseFloat(row.ColData[col.idx + 1]?.value || '0');
+          const val = parseFloat(row.ColData[col.idx + colDataOffset]?.value || '0');
           if (isCOGS) {
             monthlyExpense[i][name] = (monthlyExpense[i][name] || 0) + val;
             allSeenExpenseNames.add(name);

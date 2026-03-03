@@ -237,13 +237,31 @@ async function getMonthlyData(tokens, realmId) {
     const [year, mon] = isoDate.split('-');
     return `${MONTH_NAMES[parseInt(mon, 10) - 1]} ${year}`;
   };
-  const months = monthCols.map(col => fmtLabel(col.startDate) || col.label);
+
+  // Current calendar month as "YYYY-MM" — used to exclude the partial current month.
+  const currentYM = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+
+  // Build months and seriesArrays together in one pass so label and data for each
+  // column are always pushed atomically. Skip any column whose startDate falls in
+  // the current month (incomplete) or has no startDate but whose ColTitle month
+  // matches the current month. This replaces the fragile pop() approach which
+  // could leave months and series out of sync when extra columns are present.
+  const months = [];
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
 
   monthCols.forEach((col, i) => {
+    // Exclude current (incomplete) month: startDate "YYYY-MM-DD" → "YYYY-MM" >= currentYM
+    if (col.startDate && col.startDate.substring(0, 7) >= currentYM) {
+      console.log(`[MONTHLY] Skipping current/future month col: "${col.label}" startDate=${col.startDate}`);
+      return;
+    }
+
+    const label = fmtLabel(col.startDate) || col.label;
+    months.push(label);
+
     const agg = aggregateSeries(monthlyIncome[i], monthlyExpense[i]);
-    if (i === 0) {
+    if (months.length === 1) {
       console.log('[MONTHLY] First completed month aggregated series:', JSON.stringify(agg));
       for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
         const found = config.accounts.map(a => `"${a}"=${monthlyIncome[i][a] ?? 'MISSING'}`);
@@ -256,35 +274,7 @@ async function getMonthlyData(tokens, realmId) {
     }
   });
 
-  console.log('[MONTHLY] Completed months count:', months.length, '| months:', months);
-
-  // Outlier safety net: null any value > 10× its series median.
-  // A YTD Total column that slips past all label/MetaData filters will have an
-  // accumulated value many multiples larger than any single month — this catches it.
-  const medianOf = vals => {
-    const v = vals.filter(x => x != null && x > 0).sort((a, b) => a - b);
-    if (!v.length) return 0;
-    const m = Math.floor(v.length / 2);
-    return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
-  };
-  for (const key of Object.keys(seriesArrays)) {
-    const med = medianOf(seriesArrays[key]);
-    if (med > 0) {
-      seriesArrays[key] = seriesArrays[key].map((v, i) => {
-        if (v != null && v > 10 * med) {
-          console.log(`[MONTHLY] Outlier nulled: key="${key}" month="${months[i]}" value=${v} > 10×median=${med}`);
-          return null;
-        }
-        return v;
-      });
-    }
-  }
-
-  // Drop the last data point — it is always the current incomplete month.
-  months.pop();
-  for (const key of Object.keys(seriesArrays)) seriesArrays[key].pop();
-
-  console.log('[MONTHLY] After pop — months:', months.length, months[months.length - 1]);
+  console.log('[MONTHLY] Completed months count:', months.length, '| last month:', months[months.length - 1]);
 
   return { months, series: seriesArrays };
 }

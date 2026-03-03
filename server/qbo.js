@@ -289,6 +289,12 @@ async function getMonthlyData(tokens, realmId) {
     }
   }
 
+  // Drop the last data point — it is always the current incomplete month.
+  months.pop();
+  for (const key of Object.keys(seriesArrays)) seriesArrays[key].pop();
+
+  console.log('[MONTHLY] After pop — months:', months.length, months[months.length - 1]);
+
   return { months, series: seriesArrays };
 }
 

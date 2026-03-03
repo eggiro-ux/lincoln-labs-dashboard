@@ -213,47 +213,6 @@ function fmtK(v) {
   return sign + '$' + abs.toFixed(0);
 }
 
-// ─── Sum/Total column guard ───────────────────────────────────────────────────
-// Even if the backend filter misses a YTD/Total column, this removes any position
-// in the months+series arrays where a value is more than 5× the series median.
-// That is structurally impossible for a real single-month column and reliably
-// identifies an accumulated sum column.
-function cleanSumColumns(data) {
-  const { months, series } = data;
-  const n = months.length;
-  if (n === 0) return data;
-
-  // Per-series median (ignoring nulls/NaN)
-  const medians = {};
-  for (const key of Object.keys(series)) {
-    const vals = (series[key] || []).filter(v => v != null && !isNaN(v));
-    if (!vals.length) { medians[key] = 0; continue; }
-    const sorted = [...vals].sort((a, b) => a - b);
-    const m = Math.floor(sorted.length / 2);
-    medians[key] = sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
-  }
-
-  const valid = [];
-  for (let i = 0; i < n; i++) {
-    const isOutlier = Object.keys(series).some(key => {
-      const v = series[key][i];
-      const med = medians[key];
-      return v != null && med > 0 && Math.abs(v) > 5 * Math.abs(med);
-    });
-    if (!isOutlier) valid.push(i);
-  }
-
-  if (valid.length === n) return data; // nothing removed
-  console.log('[cleanSumColumns] Removed', n - valid.length, 'outlier position(s):', months.filter((_, i) => !valid.includes(i)));
-  return {
-    ...data,
-    months: valid.map(i => months[i]),
-    series: Object.fromEntries(
-      Object.entries(series).map(([k, arr]) => [k, valid.map(i => arr[i])])
-    ),
-  };
-}
-
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 async function checkAuth() {
   const res = await fetch('/auth/status');
@@ -333,7 +292,7 @@ async function loadAll() {
       throw new Error(monthly.error || current.error);
     }
 
-    trendData = cleanSumColumns(monthly);
+    trendData = monthly;
     periodData = current;
 
     document.getElementById('loadingState').style.display = 'none';

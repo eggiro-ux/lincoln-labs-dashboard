@@ -51,6 +51,7 @@ async function fetchPL(tokens, realmId, startDate, endDate, columns = 'month', a
 function aggregateSeries(accountValues, expenseValues = {}) {
   const result = {};
   for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+    if (config.type === 'derived') continue;
     let income = 0;
     for (const acct of config.accounts) {
       income += accountValues[acct] || 0;
@@ -64,6 +65,12 @@ function aggregateSeries(accountValues, expenseValues = {}) {
     } else {
       result[key] = Math.round(income * 100) / 100;
     }
+  }
+  // Compute derived series after all source series are resolved
+  for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+    if (config.type !== 'derived') continue;
+    const sum = (config.sources || []).reduce((acc, src) => acc + (result[src] || 0), 0);
+    result[key] = Math.round(sum * 100) / 100;
   }
   return result;
 }
@@ -252,6 +259,7 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
     if (months.length === 1) {
       console.log('[MONTHLY] First completed month aggregated series:', JSON.stringify(agg));
       for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+        if (config.type === 'derived') { console.log(`[MONTHLY] Key "${key}" (derived from [${config.sources}]) → ${agg[key]}`); continue; }
         const found = config.accounts.map(a => `"${a}"=${monthlyIncome[i][a] ?? 'MISSING'}`);
         const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${monthlyExpense[i][a] ?? 'MISSING'}`);
         console.log(`[MONTHLY] Key "${key}": income[${found.join(', ')}]${foundExp.length ? ` expense[${foundExp.join(', ')}]` : ''} → ${agg[key]}`);
@@ -349,6 +357,7 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
 
   // For each key, show which source accounts were found vs. missing
   for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
+    if (config.type === 'derived') { console.log(`[PERIOD] Key "${key}" (derived from [${config.sources}]) → current=${currentSeries[key]}`); continue; }
     const found = config.accounts.map(a => `"${a}"=${cur.income[a] ?? 'MISSING'}`);
     const foundExp = (config.expenseAccounts || []).map(a => `"${a}"=${cur.expense[a] ?? 'MISSING'}`);
     console.log(`[PERIOD] Key "${key}": income[${found.join(', ')}]${foundExp.length ? ` expense[${foundExp.join(', ')}]` : ''} → current=${currentSeries[key]}`);

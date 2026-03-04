@@ -281,15 +281,17 @@
 <script>
 // ─── Series config ────────────────────────────────────────────────────────────
 const SERIES_CONFIG = [
-  { key: 'civille',         label: 'Civille + Phantom Copy',              color: '#22c55e', dash: [],    periodLabel: 'Civille' },
-  { key: 'awesomeapi',      label: 'AwesomeAPI',                           color: '#eab308', dash: [],    periodLabel: null },
-  { key: 'truss_sal_delta', label: 'Truss Client Salaries (Income − Exp)', color: '#a855f7', dash: [],    periodLabel: 'Truss Salaries Delta' },
-  { key: 'truss_svc_rec',   label: 'Truss Svc Fees + Recruitment',         color: '#3b82f6', dash: [],    periodLabel: 'Truss Service Fees' },
-  { key: 'lincoln_labs',    label: 'Lincoln Labs Total',                   color: '#e5e5e5', dash: [4,4], periodLabel: 'Lincoln Labs' },
+  { key: 'civille',            label: 'Civille + Phantom Copy',              color: '#22c55e', dash: [],    periodLabel: 'Civille' },
+  { key: 'awesomeapi',         label: 'AwesomeAPI',                           color: '#eab308', dash: [],    periodLabel: null },
+  { key: 'brash_apps',         label: 'Brash Apps',                           color: '#f97316', dash: [],    periodLabel: 'Brash Apps' },
+  { key: 'truss_total_margin', label: 'Total Truss Margin',                   color: '#06b6d4', dash: [],    periodLabel: 'Total Truss Margin' },
+  { key: 'truss_sal_delta',    label: 'Truss Client Salaries (Income − Exp)', color: '#a855f7', dash: [],    periodLabel: 'Truss Salaries Delta' },
+  { key: 'truss_svc_rec',      label: 'Truss Svc Fees + Recruitment',         color: '#3b82f6', dash: [],    periodLabel: 'Truss Service Fees' },
+  { key: 'lincoln_labs',       label: 'Lincoln Labs Total',                   color: '#e5e5e5', dash: [4,4], periodLabel: 'Lincoln Labs' },
 ];
 
 const MARGIN = { top: 24, right: 32, bottom: 52, left: 72 };
-let hidden = new Set();
+let hidden = new Set(['truss_sal_delta', 'truss_svc_rec', 'brash_apps']);
 let hoveredMonth = null;
 let trendData = null;
 let periodData = null;

@@ -20,6 +20,14 @@ const ACCOUNT_MAP = {
     type: 'income',
   },
 
+  // Brash Apps — income account named "Apps" in QBO
+  brash_apps: {
+    label: 'Brash Apps',
+    color: '#f97316',
+    accounts: ['Apps'],
+    type: 'income',
+  },
+
   // Truss Client Salaries delta: income minus COGS expense
   truss_sal_delta: {
     label: 'Truss Client Salaries (Income − Exp)',
@@ -35,6 +43,15 @@ const ACCOUNT_MAP = {
     color: '#3b82f6',
     accounts: ['Truss Service Fees', 'Truss Recruitment'],
     type: 'income',
+  },
+
+  // Derived: sum of the two Truss series above.
+  // Must appear AFTER truss_sal_delta and truss_svc_rec so aggregateSeries resolves sources first.
+  truss_total_margin: {
+    label: 'Total Truss Margin',
+    color: '#06b6d4',
+    sources: ['truss_svc_rec', 'truss_sal_delta'],
+    type: 'derived',
   },
 
   // Lincoln Labs: read the QBO section Summary row — the individual sub-accounts

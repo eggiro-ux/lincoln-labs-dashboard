@@ -23,14 +23,14 @@ function flattenRows(rows, result = {}) {
 }
 
 // ─── Fetch a P&L report for a date range ─────────────────────────────────────
-async function fetchPL(tokens, realmId, startDate, endDate, columns = 'month') {
+async function fetchPL(tokens, realmId, startDate, endDate, columns = 'month', accountingMethod = 'Accrual') {
   const env = process.env.QBO_ENVIRONMENT || 'production';
   const base = QBO_BASE[env];
 
   const params = new URLSearchParams({
     start_date: startDate,
     end_date: endDate,
-    accounting_method: 'Accrual',
+    accounting_method: accountingMethod,
   });
 
   if (columns === 'month') params.set('summarize_column_by', 'Month');
@@ -70,7 +70,7 @@ function aggregateSeries(accountValues, expenseValues = {}) {
 
 // ─── /api/monthly — full historical P&L by month ─────────────────────────────
 // Returns { months: [...], series: { civille: [...], ... } }
-async function getMonthlyData(tokens, realmId) {
+async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
   // Use today as end_date so QBO returns every column including the current
   // partial month. We filter the partial month out below by comparing each
   // column's MetaData EndDate to the current calendar month — this keeps the
@@ -79,7 +79,7 @@ async function getMonthlyData(tokens, realmId) {
   const today = new Date();
   const end = today.toISOString().split('T')[0];
 
-  const pl = await fetchPL(tokens, realmId, start, end, 'month');
+  const pl = await fetchPL(tokens, realmId, start, end, 'month', accountingMethod);
 
   // Extract column headers (month labels)
   const cols = pl.Columns?.Column || [];
@@ -269,7 +269,7 @@ async function getMonthlyData(tokens, realmId) {
 
 // ─── /api/current-period — MTD comparison ────────────────────────────────────
 // Returns current month MTD vs same days in prior month, per product line
-async function getCurrentPeriodData(tokens, realmId) {
+async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual') {
   const today = new Date();
   const dayOfMonth = today.getDate();
 
@@ -284,8 +284,8 @@ async function getCurrentPeriodData(tokens, realmId) {
   const fmt = d => d.toISOString().split('T')[0];
 
   const [curPL, priorPL] = await Promise.all([
-    fetchPL(tokens, realmId, fmt(curStart), fmt(curEnd), 'total'),
-    fetchPL(tokens, realmId, fmt(priorStart), fmt(priorEnd), 'total'),
+    fetchPL(tokens, realmId, fmt(curStart), fmt(curEnd), 'total', accountingMethod),
+    fetchPL(tokens, realmId, fmt(priorStart), fmt(priorEnd), 'total', accountingMethod),
   ]);
 
   // Full raw dump so we can see the exact QBO section/row structure

@@ -17,7 +17,7 @@ function makeAnthropic() {
 }
 
 // ─── Phase 1 system prompt: decide what QBO calls to make ─────────────────────
-function buildPlanningPrompt() {
+function buildPlanningPrompt(accountingMethod = 'Accrual') {
   const today = new Date().toISOString().split('T')[0];
   const [year] = today.split('-');
   return `\
@@ -36,7 +36,7 @@ Lincoln Labs revenue streams (QBO account names):
 
 Available QBO endpoints and their parameters:
 1. reports/ProfitAndLoss
-   start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), accounting_method ("Accrual"),
+   start_date (YYYY-MM-DD), end_date (YYYY-MM-DD), accounting_method ("${accountingMethod}")  ← use this method,
    summarize_column_by ("Month" | "Quarter" | "Year")   ← omit for a single-column total
 
 2. reports/TransactionList
@@ -163,7 +163,7 @@ function trimResult(result) {
 }
 
 // ─── Main handler ─────────────────────────────────────────────────────────────
-async function handleAsk(tokens, realmId, question, clarifyingAnswers = null) {
+async function handleAsk(tokens, realmId, question, clarifyingAnswers = null, accountingMethod = 'Accrual') {
   const anthropic  = makeAnthropic();
   const userContent = clarifyingAnswers
     ? `${question}\n\nUser clarification: ${clarifyingAnswers}`
@@ -173,7 +173,7 @@ async function handleAsk(tokens, realmId, question, clarifyingAnswers = null) {
   const planMsg = await anthropic.messages.create({
     model:      'claude-sonnet-4-6',
     max_tokens: 1024,
-    system:     buildPlanningPrompt(),
+    system:     buildPlanningPrompt(accountingMethod),
     messages:   [{ role: 'user', content: userContent }],
   });
 

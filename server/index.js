@@ -169,7 +169,8 @@ app.get('/api/monthly', requireDashboardAuth, requireQBO, async (req, res) => {
   try {
     const accessToken = await tokenStore.getAccessToken();
     const tokens = { access_token: accessToken };
-    const data = await getMonthlyData(tokens, tokenStore.getRealmId());
+    const am = req.query.accounting_method === 'Cash' ? 'Cash' : 'Accrual';
+    const data = await getMonthlyData(tokens, tokenStore.getRealmId(), am);
     res.json(data);
   } catch (err) {
     console.error('/api/monthly error:', err.response?.data || err.message);
@@ -182,7 +183,8 @@ app.get('/api/current-period', requireDashboardAuth, requireQBO, async (req, res
   try {
     const accessToken = await tokenStore.getAccessToken();
     const tokens = { access_token: accessToken };
-    const data = await getCurrentPeriodData(tokens, tokenStore.getRealmId());
+    const am = req.query.accounting_method === 'Cash' ? 'Cash' : 'Accrual';
+    const data = await getCurrentPeriodData(tokens, tokenStore.getRealmId(), am);
     res.json(data);
   } catch (err) {
     console.error('/api/current-period error:', err.response?.data || err.message);
@@ -195,13 +197,15 @@ app.post('/api/ask', requireDashboardAuth, requireQBO, async (req, res) => {
   try {
     const accessToken = await tokenStore.getAccessToken();
     const tokens = { access_token: accessToken };
-    const { question, clarifyingAnswers } = req.body;
+    const { question, clarifyingAnswers, accountingMethod } = req.body;
     if (!question?.trim()) return res.status(400).json({ error: 'question is required' });
+    const am = accountingMethod === 'Cash' ? 'Cash' : 'Accrual';
     const result = await handleAsk(
       tokens,
       tokenStore.getRealmId(),
       question.trim(),
       clarifyingAnswers || null,
+      am,
     );
     res.json(result);
   } catch (err) {

@@ -46,6 +46,10 @@
   #errorState .error-actions a:hover { border-color: #f87171; }
 
   /* Tabs */
+  .method-toggle { display: flex; gap: 0; }
+  .method-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 6px 14px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s, border-color 0.15s; }
+  .method-btn:first-child { border-right: none; }
+  .method-btn.active { color: var(--text); border-color: var(--muted); }
   .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
   .tab { padding: 10px 24px; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }
@@ -194,6 +198,12 @@
 </div>
 
 <div id="dashboardContent" style="display:none">
+  <div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+    <div class="method-toggle">
+      <button class="method-btn active" data-method="Accrual" onclick="setAccountingMethod('Accrual')">Accrual</button>
+      <button class="method-btn" data-method="Cash" onclick="setAccountingMethod('Cash')">Cash</button>
+    </div>
+  </div>
   <div class="tabs">
     <div class="tab active" data-tab="trend">Monthly Trend</div>
     <div class="tab" data-tab="current">Current Period</div>
@@ -284,12 +294,22 @@ let hoveredMonth = null;
 let trendData = null;
 let periodData = null;
 let showCurrentMonth = false; // default: hide the current incomplete month
+let accountingMethod = 'Accrual';
 
 // The subset of trendData that was actually rendered (respects showCurrentMonth slice).
 // Tooltip and hover-index math must use these — not raw trendData — so labels and
 // values are always in sync with what the user sees.
 let displayedMonths = [];
 let displayedSeries = {};
+
+function setAccountingMethod(method) {
+  accountingMethod = method;
+  document.querySelectorAll('.method-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.method === method);
+  });
+  document.getElementById('askResult').innerHTML = '';
+  loadData();
+}
 
 function toggleCurrentMonth() {
   showCurrentMonth = !showCurrentMonth;
@@ -437,8 +457,8 @@ async function loadData() {
   try {
     setLoadingMsg('Loading revenue data…', 'Fetching monthly history');
     const [monthlyRes, currentRes] = await Promise.all([
-      fetch('/api/monthly'),
-      fetch('/api/current-period'),
+      fetch('/api/monthly?accounting_method=' + accountingMethod),
+      fetch('/api/current-period?accounting_method=' + accountingMethod),
     ]);
 
     if (monthlyRes.status === 401 || currentRes.status === 401) {
@@ -882,7 +902,7 @@ async function submitAsk() {
     const res  = await fetch('/api/ask', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ question }),
+      body:    JSON.stringify({ question, accountingMethod }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
@@ -898,7 +918,7 @@ async function _submitWithClarification(originalQuestion, selectedAnswer) {
     const res  = await fetch('/api/ask', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ question: originalQuestion, clarifyingAnswers: selectedAnswer }),
+      body:    JSON.stringify({ question: originalQuestion, clarifyingAnswers: selectedAnswer, accountingMethod }),
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);

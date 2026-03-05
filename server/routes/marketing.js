@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -352,6 +352,7 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -377,6 +378,25 @@ router.get('/marketing-summary', async (req, res) => {
           ['createdate', 'parent_lead_channel'],
         ),
       ]);
+
+      // Diagnostic: find the real channel property on contacts
+      if (mqls.length > 0) {
+        const firstId = mqls[0].id;
+        // Get all contact properties from HubSpot, filter for channel/source/lead candidates
+        const [fullContact, contactProps] = await Promise.all([
+          fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${firstId}?properties=hs_analytics_source,hs_analytics_latest_source,lead_source,parent_lead_channel,parent_lead_source,hs_lead_status,lifecyclestage`, {
+            headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
+          }).then(r => r.json()),
+          fetch('https://api.hubapi.com/crm/v3/properties/contacts', {
+            headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
+          }).then(r => r.json()),
+        ]);
+        console.log('[DIAG] First MQL full properties:', JSON.stringify(fullContact.properties));
+        const channelCandidates = (contactProps.results || [])
+          .filter(p => p.name.includes('channel') || p.name.includes('source') || p.name.includes('lead') || p.label?.toLowerCase().includes('channel'))
+          .map(p => ({ name: p.name, label: p.label }));
+        console.log('[DIAG] Contact props matching channel/source/lead:', JSON.stringify(channelCandidates));
+      }
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

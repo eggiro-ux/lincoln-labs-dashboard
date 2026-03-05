@@ -47,9 +47,9 @@
 
   /* Tabs */
   .method-toggle { display: flex; gap: 0; }
-  .method-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 6px 14px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s, border-color 0.15s; }
-  .method-btn:first-child { border-right: none; }
-  .method-btn.active { color: var(--text); border-color: var(--muted); }
+  .method-btn { position: relative; z-index: 0; background: var(--surface); border: 1px solid var(--border); color: var(--muted); font-family: 'DM Mono', monospace; font-size: 0.68rem; padding: 6px 14px; cursor: pointer; letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s, border-color 0.15s; }
+  .method-btn:first-child { margin-right: -1px; }
+  .method-btn.active { z-index: 1; color: var(--text); border-color: var(--muted); }
   .tabs { display: flex; gap: 0; margin-bottom: 24px; border-bottom: 1px solid var(--border); }
   .tab { padding: 10px 24px; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; cursor: pointer; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: color 0.15s, border-color 0.15s; }
   .tab.active { color: var(--text); border-bottom-color: var(--text); }

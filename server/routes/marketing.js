@@ -360,7 +360,6 @@ router.get('/marketing-summary', async (req, res) => {
           [
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE  },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_WON },
-            INDUSTRY_FILTER,
           ],
           ['dealname', 'amount', 'closedate', 'hs_closed_won_date', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
@@ -368,7 +367,6 @@ router.get('/marketing-summary', async (req, res) => {
           [
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE   },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_LOST },
-            INDUSTRY_FILTER,
           ],
           ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),

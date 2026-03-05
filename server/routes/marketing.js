@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -339,6 +339,7 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -364,6 +365,11 @@ router.get('/marketing-summary', async (req, res) => {
           ['createdate', 'parent_lead_channel'],
         ),
       ]);
+
+      const allChannels = [...new Set(
+        [...wonDeals, ...lostDeals].map(d => d.properties?.parent_lead_source || '(empty)')
+      )].sort();
+      console.log('[DIAG] Unique parent_lead_source values:', JSON.stringify(allChannels));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

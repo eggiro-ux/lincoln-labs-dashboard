@@ -353,11 +353,14 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 router.get('/marketing-summary', async (req, res) => {
   try {
     const summary = await cached('marketing-summary', TTL_MS, async () => {
+      const INDUSTRY_FILTER = { propertyName: 'industry', operator: 'IN', values: ['Law Practice', 'Legal Partner'] };
+
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
           [
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE  },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_WON },
+            INDUSTRY_FILTER,
           ],
           ['dealname', 'amount', 'closedate', 'hs_closed_won_date', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
@@ -365,15 +368,16 @@ router.get('/marketing-summary', async (req, res) => {
           [
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE   },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_LOST },
+            INDUSTRY_FILTER,
           ],
           ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
         hubspotContactSearch(
-          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }],
+          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, INDUSTRY_FILTER],
           ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel'],
         ),
         hubspotContactSearch(
-          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }],
+          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, INDUSTRY_FILTER],
           ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
         ),
       ]);

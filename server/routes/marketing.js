@@ -352,7 +352,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -387,18 +386,6 @@ router.get('/marketing-summary', async (req, res) => {
       const LAW_INDUSTRIES = new Set(['Law Practice', 'Legal Partner']);
       const mqlsFiltered = mqls.filter(c => LAW_INDUSTRIES.has(c.properties?.industry));
       const sqlsFiltered = sqls.filter(c => LAW_INDUSTRIES.has(c.properties?.industry));
-
-      // Validate: log 2026 MQL counts by month after industry filter
-      const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-      const mql2026 = {};
-      for (const c of mqlsFiltered) {
-        const d = toDate(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
-        if (!d || d.getFullYear() !== 2026) continue;
-        const lbl = MONTH_ABBR[d.getMonth()];
-        mql2026[lbl] = (mql2026[lbl] || 0) + 1;
-      }
-      console.log(`[DIAG] mqls total=${mqls.length} lawFirm=${mqlsFiltered.length} sqls total=${sqls.length} lawFirm=${sqlsFiltered.length}`);
-      console.log(`[DIAG] 2026 MQL by month (law firm):`, JSON.stringify(mql2026));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqlsFiltered, sqlsFiltered);
     });

@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached, bust } = require('../cache');
+const { cached } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -79,11 +79,12 @@ function toDate(str) { return str ? new Date(str) : null; }
 function inRange(date, start, end) { return date >= start && date <= end; }
 function getYear(str)  { return str ? new Date(str).getFullYear() : null; }
 
-// ── Group records by parent_lead_channel ──────────────────────────────────────
-function groupByChannel(records) {
+// ── Group records by channel property ─────────────────────────────────────────
+// Deals use `parent_lead_source`; contacts use `parent_lead_channel`.
+function groupByChannel(records, prop = 'parent_lead_source') {
   const map = {};
   for (const r of records) {
-    const ch = r.properties?.parent_lead_channel || '';
+    const ch = r.properties?.[prop] || '';
     if (!ch) continue;
     if (!map[ch]) map[ch] = [];
     map[ch].push(r);
@@ -338,7 +339,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary'); // temp: force fresh fetch while diagnosing
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -346,14 +346,14 @@ router.get('/marketing-summary', async (req, res) => {
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE  },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_WON },
           ],
-          ['dealname', 'amount', 'closedate', 'hs_closed_won_date', 'createdate', 'parent_lead_channel', 'dealstage', 'pipeline'],
+          ['dealname', 'amount', 'closedate', 'hs_closed_won_date', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
         hubspotDealSearch(
           [
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE   },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_LOST },
           ],
-          ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_channel', 'dealstage', 'pipeline'],
+          ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }],
@@ -364,18 +364,6 @@ router.get('/marketing-summary', async (req, res) => {
           ['createdate', 'parent_lead_channel'],
         ),
       ]);
-
-      console.log('[DIAG] wonDeals count:', wonDeals.length, '| lostDeals count:', lostDeals.length);
-
-      // Find the actual deal property name for channel grouping
-      const propRes = await fetch('https://api.hubapi.com/crm/v3/properties/deals', {
-        headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
-      });
-      const propData = await propRes.json();
-      const channelProps = (propData.results || [])
-        .filter(p => p.name.includes('channel') || p.name.includes('source') || p.label?.toLowerCase().includes('channel'))
-        .map(p => ({ name: p.name, label: p.label }));
-      console.log('[DIAG] Deal props matching "channel"/"source":', JSON.stringify(channelProps));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

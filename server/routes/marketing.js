@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached, bust } = require('../cache');
+const { cached } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -352,7 +352,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const INDUSTRY_FILTER = { propertyName: 'industry', operator: 'IN', values: ['Law Practice', 'Legal Partner'] };
 
@@ -373,26 +372,13 @@ router.get('/marketing-summary', async (req, res) => {
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel', 'createdate'],
+          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel', 'createdate'],
+          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
         ),
       ]);
-
-      // Diagnostic: compare createdate vs hs_v2_date_entered_marketingqualifiedlead for Paid Marketing
-      const paidMqls = mqls.filter(c => normalizeChannel(c.properties?.parent_lead_channel) === 'Paid Marketing');
-      const byYear = { stageDate: {}, createDate: {} };
-      for (const c of paidMqls) {
-        const stageYear = new Date(c.properties?.hs_v2_date_entered_marketingqualifiedlead).getFullYear();
-        const createYear = new Date(c.properties?.createdate).getFullYear();
-        byYear.stageDate[stageYear] = (byYear.stageDate[stageYear] || 0) + 1;
-        byYear.createDate[createYear] = (byYear.createDate[createYear] || 0) + 1;
-      }
-      console.log(`[DIAG] Paid Marketing MQLs total=${paidMqls.length}`);
-      console.log(`[DIAG] By hs_v2_date_entered_marketingqualifiedlead year:`, JSON.stringify(byYear.stageDate));
-      console.log(`[DIAG] By createdate year:`, JSON.stringify(byYear.createDate));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

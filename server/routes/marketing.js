@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -352,6 +352,7 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const INDUSTRY_FILTER = { propertyName: 'industry', operator: 'IN', values: ['Law Practice', 'Legal Partner'] };
 
@@ -380,6 +381,7 @@ router.get('/marketing-summary', async (req, res) => {
         ),
       ]);
 
+      console.log(`[DIAG] Fetched: wonDeals=${wonDeals.length} lostDeals=${lostDeals.length} mqls=${mqls.length} sqls=${sqls.length}`);
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });
     res.json(summary);

@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -352,9 +352,8 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
-      const INDUSTRY_FILTER = { propertyName: 'industry', operator: 'IN', values: ['Law Practice', 'Legal Partner'] };
-
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
           [
@@ -370,15 +369,29 @@ router.get('/marketing-summary', async (req, res) => {
           ],
           ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_source', 'dealstage', 'pipeline'],
         ),
+        // HAS_PROPERTY filter only — no lifecyclestage or date range in the API query.
+        // HubSpot's date indexes are imprecise when used as filters and cause undercounting.
+        // Fetch all contacts who have ever reached this stage, then filter by date in JS.
         hubspotContactSearch(
-          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel'],
+          [{ propertyName: 'hs_v2_date_entered_marketingqualifiedlead', operator: 'HAS_PROPERTY' }],
+          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel', 'createdate'],
         ),
         hubspotContactSearch(
-          [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
+          [{ propertyName: 'hs_v2_date_entered_salesqualifiedlead', operator: 'HAS_PROPERTY' }],
+          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel', 'createdate'],
         ),
       ]);
+
+      // Validate: log 2026 MQL counts by month
+      const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      const mql2026 = {};
+      for (const c of mqls) {
+        const d = toDate(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
+        if (!d || d.getFullYear() !== 2026) continue;
+        const lbl = MONTH_ABBR[d.getMonth()];
+        mql2026[lbl] = (mql2026[lbl] || 0) + 1;
+      }
+      console.log(`[DIAG] mqls=${mqls.length} sqls=${sqls.length} | 2026 MQL by month:`, JSON.stringify(mql2026));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

@@ -373,28 +373,26 @@ router.get('/marketing-summary', async (req, res) => {
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel'],
+          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel', 'createdate'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }, INDUSTRY_FILTER],
-          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
+          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel', 'createdate'],
         ),
       ]);
 
-      // Diagnostic: find where the 9 missing MQLs go
-      const mqlTotal = mqls.length;
-      const mqlWithDate = mqls.filter(c => !!c.properties?.hs_v2_date_entered_marketingqualifiedlead).length;
-      const mql2026PaidRaw = mqls.filter(c => {
-        const d = new Date(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
-        const ch = normalizeChannel(c.properties?.parent_lead_channel);
-        return d.getFullYear() === 2026 && ch === 'Paid Marketing';
-      }).length;
-      const mql2026PaidNoDate = mqls.filter(c => {
-        const ch = normalizeChannel(c.properties?.parent_lead_channel);
-        return !c.properties?.hs_v2_date_entered_marketingqualifiedlead && ch === 'Paid Marketing';
-      }).length;
-      console.log(`[DIAG] MQLs fetched=${mqlTotal} withDate=${mqlWithDate} noDate=${mqlTotal - mqlWithDate}`);
-      console.log(`[DIAG] Paid Marketing 2026 YTD: counted=${mql2026PaidRaw} skipped(null date)=${mql2026PaidNoDate}`);
+      // Diagnostic: compare createdate vs hs_v2_date_entered_marketingqualifiedlead for Paid Marketing
+      const paidMqls = mqls.filter(c => normalizeChannel(c.properties?.parent_lead_channel) === 'Paid Marketing');
+      const byYear = { stageDate: {}, createDate: {} };
+      for (const c of paidMqls) {
+        const stageYear = new Date(c.properties?.hs_v2_date_entered_marketingqualifiedlead).getFullYear();
+        const createYear = new Date(c.properties?.createdate).getFullYear();
+        byYear.stageDate[stageYear] = (byYear.stageDate[stageYear] || 0) + 1;
+        byYear.createDate[createYear] = (byYear.createDate[createYear] || 0) + 1;
+      }
+      console.log(`[DIAG] Paid Marketing MQLs total=${paidMqls.length}`);
+      console.log(`[DIAG] By hs_v2_date_entered_marketingqualifiedlead year:`, JSON.stringify(byYear.stageDate));
+      console.log(`[DIAG] By createdate year:`, JSON.stringify(byYear.createDate));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

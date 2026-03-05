@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -352,6 +352,7 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const INDUSTRY_FILTER = { propertyName: 'industry', operator: 'IN', values: ['Law Practice', 'Legal Partner'] };
 
@@ -379,6 +380,21 @@ router.get('/marketing-summary', async (req, res) => {
           ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
         ),
       ]);
+
+      // Diagnostic: find where the 9 missing MQLs go
+      const mqlTotal = mqls.length;
+      const mqlWithDate = mqls.filter(c => !!c.properties?.hs_v2_date_entered_marketingqualifiedlead).length;
+      const mql2026PaidRaw = mqls.filter(c => {
+        const d = new Date(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
+        const ch = normalizeChannel(c.properties?.parent_lead_channel);
+        return d.getFullYear() === 2026 && ch === 'Paid Marketing';
+      }).length;
+      const mql2026PaidNoDate = mqls.filter(c => {
+        const ch = normalizeChannel(c.properties?.parent_lead_channel);
+        return !c.properties?.hs_v2_date_entered_marketingqualifiedlead && ch === 'Paid Marketing';
+      }).length;
+      console.log(`[DIAG] MQLs fetched=${mqlTotal} withDate=${mqlWithDate} noDate=${mqlTotal - mqlWithDate}`);
+      console.log(`[DIAG] Paid Marketing 2026 YTD: counted=${mql2026PaidRaw} skipped(null date)=${mql2026PaidNoDate}`);
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

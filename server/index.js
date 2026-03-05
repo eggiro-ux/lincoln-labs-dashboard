@@ -16,6 +16,7 @@ const path = require('path');
 const { getMonthlyData, getCurrentPeriodData } = require('./qbo');
 const { handleAsk } = require('./ask');
 const tokenStore = require('./tokenStore');
+const marketingRouter = require('./routes/marketing');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -213,6 +214,8 @@ app.post('/api/ask', requireDashboardAuth, requireQBO, async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
+app.use('/api', marketingRouter);
 
 // ─── Catch-all → frontend ─────────────────────────────────────────────────────
 app.get('*', (req, res) => {

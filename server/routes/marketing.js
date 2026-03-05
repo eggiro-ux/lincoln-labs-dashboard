@@ -374,26 +374,33 @@ router.get('/marketing-summary', async (req, res) => {
         // Fetch all contacts who have ever reached this stage, then filter by date in JS.
         hubspotContactSearch(
           [{ propertyName: 'hs_v2_date_entered_marketingqualifiedlead', operator: 'HAS_PROPERTY' }],
-          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel', 'createdate'],
+          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel', 'createdate', 'industry'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'hs_v2_date_entered_salesqualifiedlead', operator: 'HAS_PROPERTY' }],
-          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel', 'createdate'],
+          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel', 'createdate', 'industry'],
         ),
       ]);
 
-      // Validate: log 2026 MQL counts by month
+      // Apply industry filter in JS — keeps API query simple (HAS_PROPERTY only)
+      // while still scoping to law firm contacts.
+      const LAW_INDUSTRIES = new Set(['Law Practice', 'Legal Partner']);
+      const mqlsFiltered = mqls.filter(c => LAW_INDUSTRIES.has(c.properties?.industry));
+      const sqlsFiltered = sqls.filter(c => LAW_INDUSTRIES.has(c.properties?.industry));
+
+      // Validate: log 2026 MQL counts by month after industry filter
       const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
       const mql2026 = {};
-      for (const c of mqls) {
+      for (const c of mqlsFiltered) {
         const d = toDate(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
         if (!d || d.getFullYear() !== 2026) continue;
         const lbl = MONTH_ABBR[d.getMonth()];
         mql2026[lbl] = (mql2026[lbl] || 0) + 1;
       }
-      console.log(`[DIAG] mqls=${mqls.length} sqls=${sqls.length} | 2026 MQL by month:`, JSON.stringify(mql2026));
+      console.log(`[DIAG] mqls total=${mqls.length} lawFirm=${mqlsFiltered.length} sqls total=${sqls.length} lawFirm=${sqlsFiltered.length}`);
+      console.log(`[DIAG] 2026 MQL by month (law firm):`, JSON.stringify(mql2026));
 
-      return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
+      return buildMarketingSummary(wonDeals, lostDeals, mqlsFiltered, sqlsFiltered);
     });
     res.json(summary);
   } catch (err) {

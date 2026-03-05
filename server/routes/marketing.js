@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached, bust } = require('../cache');
+const { cached } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -64,10 +64,17 @@ const CHANNEL_META = {
     verdict: 'Highest avg deal size and longest relationship age — but low total deals. Treat as a high-potential, dormant channel.',
     warning: 'Low all-time deal count. Zero 2026 YTD activity. Score reflects quality, not scale.',
   },
+  'Email':          {
+    color: '#f59e0b',
+    sources: 'Email campaigns, sequences',
+    note: 'Email-sourced deals.',
+    verdict: 'Email-sourced pipeline.',
+    warning: null,
+  },
 };
 
 // Canonical display order
-const CHANNEL_ORDER = ['Paid Marketing', 'Partnerships', 'Referral', 'Organic', 'Tradeshows', 'Prospecting', 'Social'];
+const CHANNEL_ORDER = ['Paid Marketing', 'Partnerships', 'Referral', 'Organic', 'Tradeshows', 'Prospecting', 'Social', 'Email'];
 const MONTH_NAMES   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function meta(ch) {
@@ -79,12 +86,18 @@ function toDate(str) { return str ? new Date(str) : null; }
 function inRange(date, start, end) { return date >= start && date <= end; }
 function getYear(str)  { return str ? new Date(str).getFullYear() : null; }
 
+// Strip leading emoji / non-letter characters HubSpot sometimes prepends
+// e.g. "🟢Partnerships" → "Partnerships", "🟣Tradeshows" → "Tradeshows"
+function normalizeChannel(ch) {
+  return (ch || '').replace(/^[^a-zA-Z]+/, '').trim();
+}
+
 // ── Group records by channel property ─────────────────────────────────────────
 // Deals use `parent_lead_source`; contacts use `parent_lead_channel`.
 function groupByChannel(records, prop = 'parent_lead_source') {
   const map = {};
   for (const r of records) {
-    const ch = r.properties?.[prop] || '';
+    const ch = normalizeChannel(r.properties?.[prop]);
     if (!ch) continue;
     if (!map[ch]) map[ch] = [];
     map[ch].push(r);
@@ -339,7 +352,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -365,11 +377,6 @@ router.get('/marketing-summary', async (req, res) => {
           ['createdate', 'parent_lead_channel'],
         ),
       ]);
-
-      const allChannels = [...new Set(
-        [...wonDeals, ...lostDeals].map(d => d.properties?.parent_lead_source || '(empty)')
-      )].sort();
-      console.log('[DIAG] Unique parent_lead_source values:', JSON.stringify(allChannels));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

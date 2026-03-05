@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached, bust } = require('../cache');
+const { cached } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -119,14 +119,14 @@ function buildLeadSeries(mqls, sqls) {
   for (let i = 0; i <= currentMonth; i++) { mql26[i] = 0; sql26[i] = 0; }
 
   for (const c of mqls) {
-    const d = toDate(c.properties?.createdate);
+    const d = toDate(c.properties?.hs_v2_date_entered_marketingqualifiedlead);
     if (!d) continue;
     const m = d.getMonth();
     if (d.getFullYear() === 2025) mql25[m]++;
     if (d.getFullYear() === 2026 && m <= currentMonth) mql26[m]++;
   }
   for (const c of sqls) {
-    const d = toDate(c.properties?.createdate);
+    const d = toDate(c.properties?.hs_v2_date_entered_salesqualifiedlead);
     if (!d) continue;
     const m = d.getMonth();
     if (d.getFullYear() === 2025) sql25[m]++;
@@ -146,13 +146,13 @@ function buildLeadSeries(mqls, sqls) {
 function buildSourcePeriod(wonDeals, lostDeals, mqls, sqls, startDate, endDate) {
   const wonP  = wonDeals.filter(d  => { const c = toDate(d.properties?.closedate);  return c && inRange(c, startDate, endDate); });
   const lostP = lostDeals.filter(d => { const c = toDate(d.properties?.closedate);  return c && inRange(c, startDate, endDate); });
-  const mqlP  = mqls.filter(c      => { const cr = toDate(c.properties?.createdate); return cr && inRange(cr, startDate, endDate); });
-  const sqlP  = sqls.filter(c      => { const cr = toDate(c.properties?.createdate); return cr && inRange(cr, startDate, endDate); });
+  const mqlP  = mqls.filter(c => { const cr = toDate(c.properties?.hs_v2_date_entered_marketingqualifiedlead); return cr && inRange(cr, startDate, endDate); });
+  const sqlP  = sqls.filter(c => { const cr = toDate(c.properties?.hs_v2_date_entered_salesqualifiedlead);    return cr && inRange(cr, startDate, endDate); });
 
   const wonByCh  = groupByChannel(wonP);
   const lostByCh = groupByChannel(lostP);
-  const mqlByCh  = groupByChannel(mqlP);
-  const sqlByCh  = groupByChannel(sqlP);
+  const mqlByCh  = groupByChannel(mqlP,  'parent_lead_channel');
+  const sqlByCh  = groupByChannel(sqlP,  'parent_lead_channel');
 
   const allChs = new Set([
     ...Object.keys(wonByCh), ...Object.keys(lostByCh),
@@ -288,10 +288,10 @@ function buildInsights(wonDeals, lostDeals, mqls, sqls) {
   }
 
   // Best MQL and SQL month
-  function bestMonth(contacts) {
+  function bestMonth(contacts, dateProp) {
     const byYM = {};
     for (const c of contacts) {
-      const d = toDate(c.properties?.createdate); if (!d) continue;
+      const d = toDate(c.properties?.[dateProp]); if (!d) continue;
       const k = `${d.getFullYear()}-${d.getMonth()}`;
       byYM[k] = (byYM[k] || 0) + 1;
     }
@@ -300,11 +300,11 @@ function buildInsights(wonDeals, lostDeals, mqls, sqls) {
     const [yr, mo] = top[0].split('-');
     return { label: `${MONTH_NAMES[+mo]} ${yr}`, count: top[1] };
   }
-  const bestMql = bestMonth(mqls);
-  const bestSql = bestMonth(sqls);
+  const bestMql = bestMonth(mqls, 'hs_v2_date_entered_marketingqualifiedlead');
+  const bestSql = bestMonth(sqls, 'hs_v2_date_entered_salesqualifiedlead');
 
   // Active SQL pipeline 2026
-  const sql26Count = sqls.filter(c => { const d = toDate(c.properties?.createdate); return d && d >= start26; }).length;
+  const sql26Count = sqls.filter(c => { const d = toDate(c.properties?.hs_v2_date_entered_salesqualifiedlead); return d && d >= start26; }).length;
 
   // Paid marketing win rate
   const paidW = (wonByCh['Paid Marketing'] || []).length;
@@ -352,7 +352,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary');
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -371,32 +370,13 @@ router.get('/marketing-summary', async (req, res) => {
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }],
-          ['createdate', 'parent_lead_channel'],
+          ['hs_v2_date_entered_marketingqualifiedlead', 'parent_lead_channel'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }],
-          ['createdate', 'parent_lead_channel'],
+          ['hs_v2_date_entered_salesqualifiedlead', 'parent_lead_channel'],
         ),
       ]);
-
-      // Diagnostic: find the real channel property on contacts
-      if (mqls.length > 0) {
-        const firstId = mqls[0].id;
-        // Get all contact properties from HubSpot, filter for channel/source/lead candidates
-        const [fullContact, contactProps] = await Promise.all([
-          fetch(`https://api.hubapi.com/crm/v3/objects/contacts/${firstId}?properties=hs_analytics_source,hs_analytics_latest_source,lead_source,parent_lead_channel,parent_lead_source,hs_lead_status,lifecyclestage`, {
-            headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
-          }).then(r => r.json()),
-          fetch('https://api.hubapi.com/crm/v3/properties/contacts', {
-            headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
-          }).then(r => r.json()),
-        ]);
-        console.log('[DIAG] First MQL full properties:', JSON.stringify(fullContact.properties));
-        const channelCandidates = (contactProps.results || [])
-          .filter(p => p.name.includes('channel') || p.name.includes('source') || p.name.includes('lead') || p.label?.toLowerCase().includes('channel'))
-          .map(p => ({ name: p.name, label: p.label }));
-        console.log('[DIAG] Contact props matching channel/source/lead:', JSON.stringify(channelCandidates));
-      }
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

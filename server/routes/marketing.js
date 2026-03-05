@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached, bust } = require('../cache');
+const { cached } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -338,7 +338,6 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
-    bust('marketing-summary'); // temporary: always fresh while diagnosing
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -353,7 +352,7 @@ router.get('/marketing-summary', async (req, res) => {
             { propertyName: 'pipeline',  operator: 'EQ', value: PIPELINE   },
             { propertyName: 'dealstage', operator: 'EQ', value: STAGE_LOST },
           ],
-          ['amount', 'closedate', 'createdate', 'parent_lead_channel'],
+          ['dealname', 'amount', 'closedate', 'createdate', 'parent_lead_channel', 'dealstage', 'pipeline'],
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }],

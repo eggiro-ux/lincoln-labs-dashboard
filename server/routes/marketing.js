@@ -357,12 +357,10 @@ router.get('/marketing-summary', async (req, res) => {
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'marketingqualifiedlead' }],
           ['createdate', 'parent_lead_channel'],
-          500,
         ),
         hubspotContactSearch(
           [{ propertyName: 'lifecyclestage', operator: 'EQ', value: 'salesqualifiedlead' }],
           ['createdate', 'parent_lead_channel'],
-          500,
         ),
       ]);
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);

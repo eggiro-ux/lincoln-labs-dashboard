@@ -228,14 +228,17 @@
       <h2>Revenue <em>to Date</em></h2>
       <div class="period-dates" id="periodDates"></div>
     </div>
-    <div class="period-legend">
-      <div class="period-legend-item">
-        <div class="period-legend-swatch" style="background:#e8e6e0;opacity:0.9"></div>
-        <span id="currentPeriodLabel">Current month to date</span>
-      </div>
-      <div class="period-legend-item">
-        <div class="period-legend-swatch" style="background:#e8e6e060;border:1px dashed #7a7870"></div>
-        <span id="priorPeriodLabel">Same days last month</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <div class="legend" id="compLegend" style="margin-bottom:0;flex:1;"></div>
+      <div class="period-legend" style="margin-bottom:0;flex-shrink:0;margin-left:24px;">
+        <div class="period-legend-item">
+          <div class="period-legend-swatch" style="background:#e8e6e0;opacity:0.9"></div>
+          <span id="currentPeriodLabel">Current month to date</span>
+        </div>
+        <div class="period-legend-item">
+          <div class="period-legend-swatch" style="background:#e8e6e060;border:1px dashed #7a7870"></div>
+          <span id="priorPeriodLabel">Same days last month</span>
+        </div>
       </div>
     </div>
     <div class="chart-wrapper">
@@ -292,6 +295,7 @@ const SERIES_CONFIG = [
 
 const MARGIN = { top: 24, right: 32, bottom: 52, left: 72 };
 let hidden = new Set(['truss_sal_delta', 'truss_svc_rec', 'brash_apps']);
+let compHidden = new Set(); // independent visibility for the comparison chart
 let hoveredMonth = null;
 let trendData = null;
 let periodData = null;
@@ -490,6 +494,7 @@ async function loadData() {
     document.getElementById('lastUpdated').textContent = 'Updated ' + new Date().toLocaleTimeString();
 
     buildLegend();
+    buildCompLegend();
     buildStats();
     drawTrendChart();
     drawComparisonChart();
@@ -524,6 +529,22 @@ function buildLegend() {
       const card = document.querySelector(`.stat-card[data-key="${s.key}"]`);
       if (card) card.style.display = hidden.has(s.key) ? 'none' : '';
       drawTrendChart();
+    });
+    el.appendChild(item);
+  });
+}
+
+function buildCompLegend() {
+  const el = document.getElementById('compLegend');
+  el.innerHTML = '';
+  SERIES_CONFIG.filter(s => s.periodLabel !== null).forEach(s => {
+    const item = document.createElement('div');
+    item.className = 'legend-item' + (compHidden.has(s.key) ? ' hidden' : '');
+    item.innerHTML = `<div class="legend-dot" style="background:${s.color}"></div>${s.periodLabel}`;
+    item.addEventListener('click', () => {
+      if (compHidden.has(s.key)) compHidden.delete(s.key); else compHidden.add(s.key);
+      item.classList.toggle('hidden');
+      drawComparisonChart();
     });
     el.appendChild(item);
   });
@@ -731,7 +752,7 @@ function drawComparisonChart() {
   document.getElementById('priorPeriodLabel').textContent =
     `${new Date(priorPeriod.start + 'T12:00:00').toLocaleDateString('en-US',{month:'long'})} 1–${dayOfMonth}`;
 
-  const keys = SERIES_CONFIG.filter(s => s.periodLabel !== null).map(s => s.key);
+  const keys = SERIES_CONFIG.filter(s => s.periodLabel !== null && !compHidden.has(s.key)).map(s => s.key);
   const wrapper = compCanvas.parentElement;
   const W = wrapper.clientWidth - 56;
   const H = Math.max(360, Math.round(W * 0.35));
@@ -744,6 +765,7 @@ function drawComparisonChart() {
   const plotW = W - MARGIN.left - MARGIN.right;
   const plotH = H - MARGIN.top - MARGIN.bottom;
   compCtx.clearRect(0, 0, W, H);
+  compHitBars = [];
 
   // Y scale
   let dataMax = 0, dataMin = 0;
@@ -773,15 +795,21 @@ function drawComparisonChart() {
     compCtx.fillText(fmtK(t), MARGIN.left - 8, y + 3.5);
   });
 
+  // Empty state
+  if (keys.length === 0) {
+    compCtx.fillStyle = '#7a7870';
+    compCtx.font = `11px 'DM Mono', monospace`;
+    compCtx.textAlign = 'center';
+    compCtx.fillText('All series hidden — click the legend above to show data.', W / 2, MARGIN.top + plotH / 2);
+    return;
+  }
+
   // Grouped bars
   const groupCount = keys.length;
   const groupW = plotW / groupCount;
   const barPad = groupW * 0.15;
   const barW = (groupW - barPad * 2) / 2 - 2;
   const zero = MARGIN.top + plotH - ((0 - yMin) / yRange) * plotH;
-
-  // Store bar hit areas for tooltip
-  compHitBars = [];
 
   keys.forEach((k, gi) => {
     const config = SERIES_CONFIG.find(s => s.key === k);

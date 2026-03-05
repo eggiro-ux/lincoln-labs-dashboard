@@ -6,7 +6,7 @@
 const express = require('express');
 const router  = express.Router();
 const { hubspotDealSearch, hubspotContactSearch } = require('../services/hubspot');
-const { cached } = require('../cache');
+const { cached, bust } = require('../cache');
 
 const PIPELINE  = '705841926';
 const STAGE_WON = '1031738768';
@@ -338,6 +338,7 @@ function buildMarketingSummary(wonDeals, lostDeals, mqls, sqls) {
 // ── Route ─────────────────────────────────────────────────────────────────────
 router.get('/marketing-summary', async (req, res) => {
   try {
+    bust('marketing-summary'); // temp: force fresh fetch while diagnosing
     const summary = await cached('marketing-summary', TTL_MS, async () => {
       const [wonDeals, lostDeals, mqls, sqls] = await Promise.all([
         hubspotDealSearch(
@@ -364,10 +365,17 @@ router.get('/marketing-summary', async (req, res) => {
         ),
       ]);
 
-      console.log('[DIAG] wonDeals count:', wonDeals.length);
-      console.log('[DIAG] lostDeals count:', lostDeals.length);
-      if (wonDeals.length > 0) console.log('[DIAG] first wonDeal:', JSON.stringify(wonDeals[0]));
-      else console.log('[DIAG] won query returned 0 results — pipeline:', PIPELINE, 'stage:', STAGE_WON);
+      console.log('[DIAG] wonDeals count:', wonDeals.length, '| lostDeals count:', lostDeals.length);
+
+      // Find the actual deal property name for channel grouping
+      const propRes = await fetch('https://api.hubapi.com/crm/v3/properties/deals', {
+        headers: { 'Authorization': `Bearer ${process.env.HUBSPOT_TOKEN}` },
+      });
+      const propData = await propRes.json();
+      const channelProps = (propData.results || [])
+        .filter(p => p.name.includes('channel') || p.name.includes('source') || p.label?.toLowerCase().includes('channel'))
+        .map(p => ({ name: p.name, label: p.label }));
+      console.log('[DIAG] Deal props matching "channel"/"source":', JSON.stringify(channelProps));
 
       return buildMarketingSummary(wonDeals, lostDeals, mqls, sqls);
     });

@@ -177,7 +177,7 @@ function LtvCard({d, rank}) {
   const dimBars = [
     { label:"Win rate",         val:d.s_wr,   raw:`${d.win_rate}%`,                    color:C.referral },
     { label:"Avg deal size",    val:d.s_deal, raw:`${d.avg_deal.toLocaleString()}`,   color:C.organic },
-    { label:"Relationship age", val:d.s_ret,  raw:`${d.avg_days} days`,               color:C.social },
+    { label:"Relationship age", val:d.s_ret,  raw:`${d.avg_days} days`,               color:C.social, provisional:true },
     { label:"Deal volume",      val:d.s_vol,  raw:`${d.deals} deals`,                 color:C.muted },
   ];
   return (
@@ -196,9 +196,12 @@ function LtvCard({d, rank}) {
       </div>
       <div style={{display:"flex",flexDirection:"column",gap:9,marginBottom:20}}>
         {dimBars.map((bar,i)=>(
-          <div key={i}>
+          <div key={i} style={{opacity:bar.provisional?0.38:1}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:4}}>
-              <span style={{...MONO,fontSize:"0.58rem",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em"}}>{bar.label}</span>
+              <span style={{...MONO,fontSize:"0.58rem",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",display:"flex",alignItems:"baseline",gap:4}}>
+                {bar.label}
+                {bar.provisional&&<span style={{fontSize:"0.5rem",letterSpacing:"0.04em",textTransform:"none",color:"#4a4a46"}}>(pending)</span>}
+              </span>
               <span style={{...MONO,fontSize:"0.66rem",color:bar.color}}>{bar.raw}</span>
             </div>
             <div style={{background:C.border,height:4}}>
@@ -355,6 +358,105 @@ function MiniBarChart({curVal, cmpVal, curLabel, cmpLabel, metricLabel}) {
   );
 }
 
+// ── Split MQL/SQL mini bar chart ─────────────────────────────────────────────
+function SplitLeadChart({curMql, cmpMql, curSql, cmpSql, curLabel, cmpLabel}) {
+  const [showTip, setShowTip] = useState(false);
+  const CHART_H = 130;
+  const LABEL_H = 36;
+  const BAR_W   = 32;
+  const GAP_IN  = 5;
+  const GAP_OUT = 18;
+  const AXIS_W  = 28;
+
+  const max = Math.max(curMql, cmpMql, curSql, cmpSql, 1);
+  const ticks = [...new Set([0, Math.round(max * 0.5), max])];
+
+  const mqlH    = Math.max((curMql / max) * CHART_H, curMql > 0 ? 5 : 0);
+  const mqlCmpH = Math.max((cmpMql / max) * CHART_H, cmpMql > 0 ? 5 : 0);
+  const sqlH    = Math.max((curSql / max) * CHART_H, curSql > 0 ? 5 : 0);
+  const sqlCmpH = Math.max((cmpSql / max) * CHART_H, cmpSql > 0 ? 5 : 0);
+
+  const mqlDelta = curMql - cmpMql;
+  const sqlDelta = curSql - cmpSql;
+  const mqlDClr  = mqlDelta === 0 ? C.muted : mqlDelta > 0 ? C.positive : C.negative;
+  const sqlDClr  = sqlDelta === 0 ? C.muted : sqlDelta > 0 ? C.positive : C.negative;
+
+  return (
+    <div style={{position:"relative", userSelect:"none"}}
+      onMouseEnter={()=>setShowTip(true)} onMouseLeave={()=>setShowTip(false)}>
+
+      {showTip && (
+        <div style={{
+          position:"absolute", bottom: LABEL_H + CHART_H + 8,
+          left:"50%", transform:"translateX(-50%)",
+          background:C.tooltip, border:`1px solid ${C.border}`,
+          padding:"12px 16px", zIndex:30, minWidth:200, pointerEvents:"none",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.5)",
+        }}>
+          <div style={{...MONO,fontSize:"0.6rem",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10,paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
+            Lead Generation
+          </div>
+          {[["MQL", curMql, cmpMql, mqlDelta, mqlDClr],["SQL", curSql, cmpSql, sqlDelta, sqlDClr]].map(([lbl, cur, cmp, delta, dClr])=>(
+            <div key={lbl} style={{marginBottom:8}}>
+              <div style={{...MONO,fontSize:"0.54rem",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{lbl}</div>
+              <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:2}}>
+                <span style={{...MONO,fontSize:"0.66rem",color:C.text}}>{curLabel}: {cur}</span>
+                <span style={{...MONO,fontSize:"0.66rem",color:C.muted}}>{cmpLabel}: {cmp}</span>
+              </div>
+              <div style={{...MONO,fontSize:"0.64rem",color:dClr}}>{delta>0?"+":""}{delta}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{position:"relative", height:CHART_H + LABEL_H}}>
+        {/* Y-axis gridlines */}
+        {ticks.map(t => {
+          const y = CHART_H - (t / max) * CHART_H;
+          return (
+            <div key={t} style={{position:"absolute",left:0,right:0,top:y,display:"flex",alignItems:"center",pointerEvents:"none"}}>
+              <span style={{...MONO,fontSize:"0.52rem",color:C.muted,width:AXIS_W,textAlign:"right",paddingRight:6,flexShrink:0,lineHeight:1}}>{t}</span>
+              <div style={{flex:1,borderTop:`1px solid ${C.border}`,opacity:t===0?1:0.35}}/>
+            </div>
+          );
+        })}
+
+        {/* Grouped bars */}
+        <div style={{position:"absolute",left:AXIS_W,top:0,height:CHART_H,display:"flex",alignItems:"flex-end"}}>
+          {/* MQL group */}
+          <div style={{display:"flex",alignItems:"flex-end",gap:GAP_IN}}>
+            <div style={{width:BAR_W,height:CHART_H,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              {mqlDelta !== 0 && <div style={{...MONO,fontSize:"0.54rem",color:mqlDClr,marginBottom:4,whiteSpace:"nowrap",lineHeight:1}}>{mqlDelta>0?"+":""}{mqlDelta}</div>}
+              <div style={{width:"100%",height:mqlH,background:C.text,transition:"height 0.45s ease",flexShrink:0}}/>
+            </div>
+            <div style={{width:BAR_W,height:CHART_H,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{width:"100%",height:mqlCmpH,background:"transparent",border:`1.5px dashed ${C.muted}`,boxSizing:"border-box",transition:"height 0.45s ease",flexShrink:0}}/>
+            </div>
+          </div>
+          <div style={{width:GAP_OUT}}/>
+          {/* SQL group */}
+          <div style={{display:"flex",alignItems:"flex-end",gap:GAP_IN}}>
+            <div style={{width:BAR_W,height:CHART_H,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              {sqlDelta !== 0 && <div style={{...MONO,fontSize:"0.54rem",color:sqlDClr,marginBottom:4,whiteSpace:"nowrap",lineHeight:1}}>{sqlDelta>0?"+":""}{sqlDelta}</div>}
+              <div style={{width:"100%",height:sqlH,background:C.text,transition:"height 0.45s ease",flexShrink:0}}/>
+            </div>
+            <div style={{width:BAR_W,height:CHART_H,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"flex-end"}}>
+              <div style={{width:"100%",height:sqlCmpH,background:"transparent",border:`1.5px dashed ${C.muted}`,boxSizing:"border-box",transition:"height 0.45s ease",flexShrink:0}}/>
+            </div>
+          </div>
+        </div>
+
+        {/* X-axis group labels */}
+        <div style={{position:"absolute",left:AXIS_W,top:CHART_H,height:LABEL_H,display:"flex",alignItems:"flex-start",paddingTop:6}}>
+          <div style={{width:BAR_W+GAP_IN+BAR_W,textAlign:"center",...MONO,fontSize:"0.52rem",color:C.muted}}>MQL</div>
+          <div style={{width:GAP_OUT}}/>
+          <div style={{width:BAR_W+GAP_IN+BAR_W,textAlign:"center",...MONO,fontSize:"0.52rem",color:C.muted}}>SQL</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PeriodCompareCard({title, current, compare, currentLabel, compareLabel, note}) {
   const curLeads = (current.mqls ?? 0) + (current.sqls ?? 0);
   const cmpLeads = (compare.mqls ?? 0) + (compare.sqls ?? 0);
@@ -386,14 +488,15 @@ function PeriodCompareCard({title, current, compare, currentLabel, compareLabel,
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,flexGrow:1}}>
         <div>
           <div style={{...MONO,fontSize:"0.58rem",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>
-            Lead Generation <span style={{color:"#444",fontSize:"0.52rem"}}>MQL + SQL</span>
+            Lead Generation <span style={{color:"#444",fontSize:"0.52rem"}}>MQL · SQL</span>
           </div>
-          <MiniBarChart
-            curVal={curLeads}
-            cmpVal={cmpLeads}
+          <SplitLeadChart
+            curMql={current.mqls ?? 0}
+            cmpMql={compare.mqls ?? 0}
+            curSql={current.sqls ?? 0}
+            cmpSql={compare.sqls ?? 0}
             curLabel={currentLabel}
             cmpLabel={compareLabel}
-            metricLabel="Lead Generation (MQL + SQL)"
           />
         </div>
         <div>
@@ -680,9 +783,10 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,borderTop:"none",padding:"10px 16px",marginBottom:10}}>
-          <span style={{...MONO,fontSize:"0.6rem",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase",marginRight:8}}>Goal:</span>
-          <span style={{...MONO,fontSize:"0.68rem",color:C.text}}>2025 actuals × 1.35 </span>
-          <span style={{...MONO,fontSize:"0.65rem",color:C.muted}}>(35% YoY target per month)</span>
+          <span style={{...MONO,fontSize:"0.63rem",color:C.muted,lineHeight:1.75,display:"block"}}>
+            <span style={{color:"#555",letterSpacing:"0.06em",textTransform:"uppercase",fontSize:"0.58rem",marginRight:8}}>Note</span>
+            2026 Goal = 2025 actuals × 1.35. 2025 baseline excludes trade show and referral leads not consistently entered in HubSpot. Goal will recalibrate as historical data normalizes.
+          </span>
         </div>
         <div style={{display:"flex",flexDirection:"column",gap:4}}>
           <AlertBar type="warn"><span style={{flexShrink:0}}>⚠</span><span><strong style={{color:"#f87171"}}>MQL tracking gap:</strong> Jan–Mar 2025 near-zero reflects HubSpot configuration date, not actual lead volume. Reliable YoY starts April 2026.</span></AlertBar>
@@ -774,9 +878,11 @@ export default function Dashboard() {
           </div>
           <div style={{minWidth:480}}>
             <div style={{display:"grid",gridTemplateColumns:"1.4fr repeat(5,1fr)",gap:1,background:"#1a3020",marginBottom:14}}>
-              {[{h:"Channel",sub:null},{h:"Score",sub:"composite"},{h:"Win Rate",sub:"won÷(won+lost)"},{h:"Avg Deal",sub:"all-time"},{h:"Retention",sub:"avg days"},{h:"Volume",sub:"deals"}].map(({h,sub},i)=>(
+              {[{h:"Channel",sub:null},{h:"Score",sub:"composite"},{h:"Win Rate",sub:"won÷(won+lost)"},{h:"Avg Deal",sub:"all-time"},{h:"Retention",sub:"avg days",pending:true},{h:"Volume",sub:"deals"}].map(({h,sub,pending},i)=>(
                 <div key={i} style={{background:"#0b120d",padding:"8px 10px"}}>
-                  <div style={{...MONO,fontSize:"0.6rem",color:"#4a8a5a",letterSpacing:"0.08em",textTransform:"uppercase"}}>{h}</div>
+                  <div style={{...MONO,fontSize:"0.6rem",color:"#4a8a5a",letterSpacing:"0.08em",textTransform:"uppercase",display:"flex",alignItems:"baseline",gap:5}}>
+                    {h}{pending&&<span style={{fontSize:"0.5rem",color:"#4a6a4a",letterSpacing:"0.04em",textTransform:"none"}}>(pending)</span>}
+                  </div>
                   {sub&&<div style={{...MONO,fontSize:"0.52rem",color:"#345040",marginTop:2}}>{sub}</div>}
                 </div>
               ))}
@@ -825,6 +931,9 @@ export default function Dashboard() {
           </div>
           <div style={{...MONO,fontSize:"0.62rem",color:"#4a6a4a",lineHeight:1.7}}>
             Score = win rate (30%) + avg deal size (30%) + relationship age (30%) + deal volume (10%) · normalized 0–100 per dimension
+          </div>
+          <div style={{...MONO,fontSize:"0.6rem",color:C.muted,lineHeight:1.7,marginTop:8,opacity:0.55,borderTop:"1px solid #1a3020",paddingTop:8}}>
+            ⚠ Retention scores are temporarily based on sales cycle length and do not reflect actual customer relationship age. QuickBooks billing integration is in progress and will replace this metric.
           </div>
         </div>
 

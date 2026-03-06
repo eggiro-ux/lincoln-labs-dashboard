@@ -25,12 +25,17 @@
   // ── Styles ────────────────────────────────────────────────────────────────
   const style = document.createElement('style');
   style.textContent = `
+    body {
+      background: #0f0f0e !important;
+      color: #e8e6e0;
+    }
     #ll-nav {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 14px ${sidePad};
       margin-bottom: 20px;
+      background: #0f0f0e;
       border-bottom: 1px solid #2a2a27;
       font-family: 'DM Mono', monospace;
     }

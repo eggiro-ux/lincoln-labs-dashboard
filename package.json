@@ -16,6 +16,7 @@
     "express-session": "^1.17.3",
     "intuit-oauth": "^4.0.0",
     "node-quickbooks": "^2.0.37",
+    "pg": "^8.20.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "recharts": "^3.7.0"

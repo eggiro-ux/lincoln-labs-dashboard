@@ -33,6 +33,17 @@ Estimated time: **20–30 minutes**.
    - You'll get a URL like `lincoln-labs-dashboard-production.up.railway.app`
    - Copy this URL — go back to Step 1 and add it to your QBO Redirect URI.
 
+### Add a Postgres database (required for persistent QBO auth)
+
+6. In your Railway project, click **"New"** → **"Database"** → **"Add PostgreSQL"**.
+7. Railway will provision a Postgres instance and automatically inject `DATABASE_URL`
+   into your service's environment. No manual copy-paste needed.
+8. Redeploy the service once so it picks up `DATABASE_URL` on startup.
+
+> **Why this matters:** Without Postgres, QBO tokens are stored in `/tmp` and are
+> lost on every redeploy. With Postgres, you connect QuickBooks once and the
+> dashboard stays authenticated permanently across all restarts and redeployments.
+
 ---
 
 ## Step 3 — Set Environment Variables in Railway (5 min)
@@ -46,6 +57,7 @@ In your Railway project, go to **Variables** and add the following:
 | `QBO_REDIRECT_URI` | `https://your-app.up.railway.app/auth/callback` |
 | `QBO_ENVIRONMENT` | `production` |
 | `SESSION_SECRET` | Any long random string (e.g. run `openssl rand -hex 32` in Terminal) |
+| `DATABASE_URL` | Injected automatically by Railway when you add the Postgres plugin (Step 2) |
 
 Railway will automatically restart the app after you save variables.
 
@@ -59,16 +71,16 @@ Railway will automatically restart the app after you save variables.
 4. Authorize the app to access your QuickBooks data.
 5. You'll be redirected back to the dashboard, which will immediately start loading your revenue data.
 
-Your session stays active for 7 days. After that, just click "Connect QuickBooks" again.
+With Postgres configured, QuickBooks stays connected permanently. You should never need to
+re-authenticate unless you explicitly click "Disconnect QBO" or rotate your QBO app credentials.
 
 ---
 
 ## Step 5 — Share with Your Team
 
-Share the Railway URL with your colleagues. They each click "Connect QuickBooks" and sign in
-with their own QBO credentials (they need QBO access — Reports level or higher is sufficient).
-
-Sessions are per-user and stored server-side, so each person authenticates independently.
+Share the Railway URL with your colleagues. Anyone with the dashboard password can access the
+data — no individual QBO sign-in required. The QBO connection is shared server-wide (one admin
+connects once on behalf of the team).
 
 ---
 

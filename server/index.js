@@ -222,4 +222,16 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
-app.listen(PORT, () => console.log(`Lincoln Labs dashboard running on port ${PORT}`));
+// ─── Startup ──────────────────────────────────────────────────────────────────
+// Init tokenStore first so any persisted QBO tokens are loaded before we
+// accept requests. If the database is unavailable, it falls back to /tmp.
+async function start() {
+  try {
+    await tokenStore.init();
+  } catch (err) {
+    console.error('[startup] tokenStore.init() failed (continuing anyway):', err.message);
+  }
+  app.listen(PORT, () => console.log(`Lincoln Labs dashboard running on port ${PORT}`));
+}
+
+start();

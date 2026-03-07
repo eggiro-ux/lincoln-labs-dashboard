@@ -247,22 +247,19 @@ function MiniBarChart({curVal, cmpVal, curLabel, cmpLabel, metricLabel}) {
   const cmpH = Math.max((cmpVal / max) * CHART_H, cmpVal > 0 ? 5 : 0);
   const ticks = [...new Set([0, Math.round(max * 0.5), max])];
 
-  // Tooltip: anchored above the taller bar, centered over both bars
-  const tipLeft = AXIS_W + BAR_W / 2; // center of current bar
-
   return (
     <div style={{position:"relative", userSelect:"none"}}
       onMouseEnter={()=>setShowTip(true)} onMouseLeave={()=>setShowTip(false)}>
 
-      {/* Shared tooltip — appears centered over chart when hovering anywhere */}
+      {/* Tooltip — left-anchored, sizes to content, never clips */}
       {showTip && (
         <div style={{
           position:"absolute",
           bottom: LABEL_H + CHART_H + 8,
-          left: "50%", transform:"translateX(-50%)",
+          left: 0,
           background:C.tooltip, border:`1px solid ${C.border}`,
-          padding:"12px 16px", zIndex:30, minWidth:190, pointerEvents:"none",
-          boxShadow:"0 4px 20px rgba(0,0,0,0.5)",
+          padding:"14px 16px", zIndex:30, minWidth:220, pointerEvents:"none",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.5)", whiteSpace:"nowrap",
         }}>
           {/* Header */}
           <div style={{...MONO,fontSize:"0.6rem",color:C.muted,letterSpacing:"0.1em",
@@ -271,26 +268,26 @@ function MiniBarChart({curVal, cmpVal, curLabel, cmpLabel, metricLabel}) {
             {metricLabel}
           </div>
           {/* Current */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:4}}>
-            <span style={{display:"flex",alignItems:"center",gap:6,...MONO,fontSize:"0.68rem",color:C.text}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:24,marginBottom:6}}>
+            <span style={{display:"flex",alignItems:"center",gap:7,...MONO,fontSize:"0.68rem",color:C.text}}>
               <span style={{width:8,height:8,background:C.text,display:"inline-block",flexShrink:0}}/>
               {curLabel}
             </span>
-            <span style={{...MONO,fontSize:"0.72rem",color:C.text,fontWeight:500}}>{curVal}</span>
+            <span style={{...MONO,fontSize:"0.72rem",color:C.text}}>{curVal}</span>
           </div>
           {/* Prior */}
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:10}}>
-            <span style={{display:"flex",alignItems:"center",gap:6,...MONO,fontSize:"0.68rem",color:C.muted}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:24,marginBottom:10}}>
+            <span style={{display:"flex",alignItems:"center",gap:7,...MONO,fontSize:"0.68rem",color:C.muted}}>
               <span style={{width:8,height:8,border:`1.5px dashed ${C.muted}`,display:"inline-block",flexShrink:0}}/>
               {cmpLabel}
             </span>
             <span style={{...MONO,fontSize:"0.72rem",color:C.muted}}>{cmpVal}</span>
           </div>
-          {/* Delta row */}
+          {/* Delta */}
           <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,
             display:"flex",justifyContent:"space-between",alignItems:"center"}}>
             <span style={{...MONO,fontSize:"0.68rem",color:C.muted}}>Delta</span>
-            <span style={{...MONO,fontSize:"0.75rem",color:dClr,fontWeight:500}}>
+            <span style={{...MONO,fontSize:"0.75rem",color:dClr}}>
               {delta >= 0 ? "+" : ""}{delta}
             </span>
           </div>
@@ -388,24 +385,53 @@ function SplitLeadChart({curMql, cmpMql, curSql, cmpSql, curLabel, cmpLabel}) {
       {showTip && (
         <div style={{
           position:"absolute", bottom: LABEL_H + CHART_H + 8,
-          left:"50%", transform:"translateX(-50%)",
+          left: 0,
           background:C.tooltip, border:`1px solid ${C.border}`,
-          padding:"12px 16px", zIndex:30, minWidth:200, pointerEvents:"none",
-          boxShadow:"0 4px 20px rgba(0,0,0,0.5)",
+          padding:"14px 16px", zIndex:30, minWidth:260, pointerEvents:"none",
+          boxShadow:"0 4px 20px rgba(0,0,0,0.5)", whiteSpace:"nowrap",
         }}>
+          {/* Header */}
           <div style={{...MONO,fontSize:"0.6rem",color:C.muted,letterSpacing:"0.1em",textTransform:"uppercase",marginBottom:10,paddingBottom:8,borderBottom:`1px solid ${C.border}`}}>
             Lead Generation
           </div>
-          {[["MQL", curMql, cmpMql, mqlDelta, mqlDClr],["SQL", curSql, cmpSql, sqlDelta, sqlDClr]].map(([lbl, cur, cmp, delta, dClr])=>(
-            <div key={lbl} style={{marginBottom:8}}>
-              <div style={{...MONO,fontSize:"0.54rem",color:C.muted,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:3}}>{lbl}</div>
-              <div style={{display:"flex",justifyContent:"space-between",gap:12,marginBottom:2}}>
-                <span style={{...MONO,fontSize:"0.66rem",color:C.text}}>{curLabel}: {cur}</span>
-                <span style={{...MONO,fontSize:"0.66rem",color:C.muted}}>{cmpLabel}: {cmp}</span>
-              </div>
-              <div style={{...MONO,fontSize:"0.64rem",color:dClr}}>{delta>0?"+":""}{delta}</div>
+          {/* Column headers: label col + MQL + SQL */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6,gap:16}}>
+            <span style={{...MONO,fontSize:"0.56rem",color:"transparent",userSelect:"none"}}>——</span>
+            <div style={{display:"flex",gap:20}}>
+              <span style={{...MONO,fontSize:"0.58rem",color:C.muted,width:32,textAlign:"right",letterSpacing:"0.06em"}}>MQL</span>
+              <span style={{...MONO,fontSize:"0.58rem",color:C.muted,width:32,textAlign:"right",letterSpacing:"0.06em"}}>SQL</span>
             </div>
-          ))}
+          </div>
+          {/* Current row */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:5}}>
+            <span style={{display:"flex",alignItems:"center",gap:7,...MONO,fontSize:"0.68rem",color:C.text}}>
+              <span style={{width:8,height:8,background:C.text,display:"inline-block",flexShrink:0}}/>
+              {curLabel}
+            </span>
+            <div style={{display:"flex",gap:20}}>
+              <span style={{...MONO,fontSize:"0.72rem",color:C.text,width:32,textAlign:"right"}}>{curMql}</span>
+              <span style={{...MONO,fontSize:"0.72rem",color:C.text,width:32,textAlign:"right"}}>{curSql}</span>
+            </div>
+          </div>
+          {/* Prior row */}
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:16,marginBottom:10}}>
+            <span style={{display:"flex",alignItems:"center",gap:7,...MONO,fontSize:"0.68rem",color:C.muted}}>
+              <span style={{width:8,height:8,border:`1.5px dashed ${C.muted}`,display:"inline-block",flexShrink:0}}/>
+              {cmpLabel}
+            </span>
+            <div style={{display:"flex",gap:20}}>
+              <span style={{...MONO,fontSize:"0.72rem",color:C.muted,width:32,textAlign:"right"}}>{cmpMql}</span>
+              <span style={{...MONO,fontSize:"0.72rem",color:C.muted,width:32,textAlign:"right"}}>{cmpSql}</span>
+            </div>
+          </div>
+          {/* Delta row */}
+          <div style={{borderTop:`1px solid ${C.border}`,paddingTop:8,display:"flex",justifyContent:"space-between",alignItems:"center",gap:16}}>
+            <span style={{...MONO,fontSize:"0.68rem",color:C.muted}}>Delta</span>
+            <div style={{display:"flex",gap:20}}>
+              <span style={{...MONO,fontSize:"0.75rem",color:mqlDClr,width:32,textAlign:"right"}}>{mqlDelta>=0?"+":""}{mqlDelta}</span>
+              <span style={{...MONO,fontSize:"0.75rem",color:sqlDClr,width:32,textAlign:"right"}}>{sqlDelta>=0?"+":""}{sqlDelta}</span>
+            </div>
+          </div>
         </div>
       )}
 

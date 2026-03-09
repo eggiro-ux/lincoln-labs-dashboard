@@ -377,9 +377,7 @@ async function checkAuth() {
   if (dashboardAuthed) {
     // Build header action buttons
     const refreshBtn = `<button class="btn" onclick="refreshData()" id="refreshBtn">↺ Refresh Data</button>`;
-    const reconnectBtn = `<a href="/auth/qbo-login" class="btn${qboConnected ? '' : ' primary'}">⚡ Reconnect QuickBooks</a>`;
-    const signOutBtn = `<a href="/auth/logout" class="btn">Sign Out</a>`;
-    btns.innerHTML = refreshBtn + reconnectBtn + signOutBtn;
+    btns.innerHTML = refreshBtn;
     document.getElementById('headerSub').textContent = qboConnected
       ? 'Live data · QuickBooks Online'
       : 'QuickBooks not connected';

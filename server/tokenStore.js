@@ -35,9 +35,9 @@ function _saveTmp() {
 
 // ─── Private: write to Postgres (fire-and-forget; errors are logged) ──────────
 function _saveDb() {
-  db.saveTokenRow(_tokens, _realmId).catch(e => {
-    console.warn('[tokenStore] Could not save to database:', e.message);
-  });
+  db.saveTokenRow(_tokens, _realmId)
+    .then(() => console.log('[tokenStore] Tokens saved to database successfully.'))
+    .catch(e => console.warn('[tokenStore] Could not save to database:', e.message));
 }
 
 // Write to every persistence layer.

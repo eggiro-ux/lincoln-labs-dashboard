@@ -246,6 +246,8 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
       }
     }
     walk(pl.Rows?.Row || [], false);
+    // DIAGNOSTIC — remove after fixing Civille prior-period bug
+    console.log('[extractTotals] income:', JSON.stringify(income));
     return { income, expense };
   }
 

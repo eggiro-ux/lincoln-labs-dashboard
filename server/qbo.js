@@ -212,8 +212,12 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
             const summaryName = row.Summary.ColData[0]?.value;
             const val = parseFloat(row.Summary.ColData[1]?.value || '0');
             if (summaryName) {
-              if (nowCOGS) expense[summaryName] = (expense[summaryName] || 0) + val;
-              else income[summaryName] = (income[summaryName] || 0) + val;
+              // Use assignment (not +=) so the outermost Summary always wins.
+              // QBO can emit a "Total Civille" Summary at multiple nesting levels;
+              // since we recurse before capturing the Summary, the outer (authoritative)
+              // total overwrites any inner duplicate accumulated during recursion.
+              if (nowCOGS) expense[summaryName] = val;
+              else income[summaryName] = val;
             }
           }
         }

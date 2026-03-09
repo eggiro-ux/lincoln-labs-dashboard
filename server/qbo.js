@@ -245,8 +245,26 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
         }
       }
     }
+    // DIAGNOSTIC — log raw section structure for Civille-related rows
+    function logRows(rows, depth) {
+      const pad = '  '.repeat(depth);
+      for (const row of rows) {
+        if (row.type === 'Section') {
+          const h = row.Header?.ColData?.[0]?.value || '';
+          const sn = row.Summary?.ColData?.[0]?.value || '';
+          const sv = row.Summary?.ColData?.[1]?.value || '';
+          console.log(`${pad}Section header="${h}" summary="${sn}" sumVal=${sv} children=${row.Rows?.Row?.length ?? 0}`);
+          if (row.Rows?.Row) logRows(row.Rows.Row, depth + 1);
+        } else if (row.type === 'Data') {
+          const n = row.ColData?.[0]?.value || '';
+          const v = row.ColData?.[1]?.value || '';
+          console.log(`${pad}Data name="${n}" val=${v}`);
+        }
+      }
+    }
+    console.log('[extractTotals RAW STRUCTURE]:');
+    logRows(pl.Rows?.Row || [], 0);
     walk(pl.Rows?.Row || [], false);
-    // DIAGNOSTIC — remove after fixing Civille prior-period bug
     console.log('[extractTotals] income:', JSON.stringify(income));
     return { income, expense };
   }

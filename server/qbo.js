@@ -120,21 +120,24 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
           sName.toLowerCase().includes('cost of goods') ||
           sName.toLowerCase().includes('offshore labor');
 
-        if (row.Rows?.Row) processRowsInner(row.Rows.Row, stillCOGS, sName);
-
-        // Capture section Summary (e.g. "Total Civille") — rolled-up total
-        if (row.Summary?.ColData) {
-          const summaryName = row.Summary.ColData[0]?.value;
-          if (summaryName) {
-            monthCols.forEach((col, i) => {
-              const val = parseFloat(row.Summary.ColData[col.idx + colDataOffset]?.value || '0');
-              if (stillCOGS) {
-                monthlyExpense[i][summaryName] = (monthlyExpense[i][summaryName] || 0) + val;
-              } else {
-                monthlyIncome[i][summaryName] = (monthlyIncome[i][summaryName] || 0) + val;
-              }
-            });
-          }
+        if (row.Summary?.ColData?.[0]?.value) {
+          // Section has an authoritative Summary total — use it exclusively.
+          // Do NOT also recurse into children: their individual Data rows and
+          // nested Section summaries are already rolled up into this total and
+          // recursing would double-count them (e.g. "Total Civille" captured
+          // once from a child node and again from this Section's own Summary).
+          const summaryName = row.Summary.ColData[0].value;
+          monthCols.forEach((col, i) => {
+            const val = parseFloat(row.Summary.ColData[col.idx + colDataOffset]?.value || '0');
+            if (stillCOGS) {
+              monthlyExpense[i][summaryName] = (monthlyExpense[i][summaryName] || 0) + val;
+            } else {
+              monthlyIncome[i][summaryName] = (monthlyIncome[i][summaryName] || 0) + val;
+            }
+          });
+        } else if (row.Rows?.Row) {
+          // No Summary — this is a pure grouping node; recurse to find leaf values.
+          processRowsInner(row.Rows.Row, stillCOGS, sName);
         }
       }
 
@@ -206,15 +209,16 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
             sName.toLowerCase().includes('cost of goods') ||
             sName.toLowerCase().includes('offshore labor');
 
-          if (row.Rows?.Row) walk(row.Rows.Row, nowCOGS);
-
-          if (row.Summary?.ColData) {
-            const summaryName = row.Summary.ColData[0]?.value;
+          if (row.Summary?.ColData?.[0]?.value) {
+            // Section has authoritative Summary — use it exclusively; skip children.
+            // Recursing would double-count child Data rows already rolled up here.
+            const summaryName = row.Summary.ColData[0].value;
             const val = parseFloat(row.Summary.ColData[1]?.value || '0');
-            if (summaryName) {
-              if (nowCOGS) expense[summaryName] = (expense[summaryName] || 0) + val;
-              else income[summaryName] = (income[summaryName] || 0) + val;
-            }
+            if (nowCOGS) expense[summaryName] = (expense[summaryName] || 0) + val;
+            else income[summaryName] = (income[summaryName] || 0) + val;
+          } else if (row.Rows?.Row) {
+            // No Summary — pure grouping node; recurse to find leaf values.
+            walk(row.Rows.Row, nowCOGS);
           }
         }
         if (row.type === 'Data' && row.ColData) {

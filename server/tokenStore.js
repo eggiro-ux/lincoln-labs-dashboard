@@ -65,6 +65,7 @@ function _loadTmp() {
 // ─── Init (async) — MUST be awaited before server starts ─────────────────────
 // Tries Postgres first; falls back to /tmp if DB is unavailable or empty.
 async function init() {
+  console.log('[tokenStore] DATABASE_URL present:', !!process.env.DATABASE_URL);
   try {
     await db.ensureTable();
     const row = await db.loadTokenRow();

@@ -221,10 +221,18 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
           if (summaryName && KNOWN_SUMMARY_ACCOUNTS.has(summaryName)) {
             // This Section's Summary is a recognized account name (e.g. "Total Civille").
             // Use the Summary as the authoritative total and skip children entirely —
-            // recursing would double-count the individual Data rows already rolled up here.
+            // recursing would double-count individual Data rows already rolled up here.
+            //
+            // For income: first-wins. QBO can emit the same Summary name multiple times
+            // (e.g. "Total Civille" for the real income entry AND as expense-allocation
+            // sub-sections under Merchant fees, Payroll, etc.). The correct income value
+            // always appears first in depth-first traversal; later duplicates are skipped.
             const val = parseFloat(row.Summary.ColData[1]?.value || '0');
-            if (nowCOGS) expense[summaryName] = val;
-            else income[summaryName] = val;
+            if (nowCOGS) {
+              expense[summaryName] = val;
+            } else if (income[summaryName] === undefined) {
+              income[summaryName] = val;
+            }
           } else {
             // Unrecognized section (e.g. "Income", "Cost of Goods Sold"): recurse normally
             // to find leaf account values and Data rows within it.
@@ -245,27 +253,7 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
         }
       }
     }
-    // DIAGNOSTIC — log raw section structure for Civille-related rows
-    function logRows(rows, depth) {
-      const pad = '  '.repeat(depth);
-      for (const row of rows) {
-        if (row.type === 'Section') {
-          const h = row.Header?.ColData?.[0]?.value || '';
-          const sn = row.Summary?.ColData?.[0]?.value || '';
-          const sv = row.Summary?.ColData?.[1]?.value || '';
-          console.log(`${pad}Section header="${h}" summary="${sn}" sumVal=${sv} children=${row.Rows?.Row?.length ?? 0}`);
-          if (row.Rows?.Row) logRows(row.Rows.Row, depth + 1);
-        } else if (row.type === 'Data') {
-          const n = row.ColData?.[0]?.value || '';
-          const v = row.ColData?.[1]?.value || '';
-          console.log(`${pad}Data name="${n}" val=${v}`);
-        }
-      }
-    }
-    console.log('[extractTotals RAW STRUCTURE]:');
-    logRows(pl.Rows?.Row || [], 0);
     walk(pl.Rows?.Row || [], false);
-    console.log('[extractTotals] income:', JSON.stringify(income));
     return { income, expense };
   }
 

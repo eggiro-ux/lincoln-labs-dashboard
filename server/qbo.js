@@ -1,6 +1,16 @@
 const axios = require('axios');
 const ACCOUNT_MAP = require('./accounts');
 
+// Set of all account names that ACCOUNT_MAP resolves directly from a QBO Section Summary.
+// Used by walk() to decide when a Section's Summary is the authoritative total and
+// its children should be skipped (prevents double-counting like Civille).
+const KNOWN_SUMMARY_ACCOUNTS = new Set(
+  Object.values(ACCOUNT_MAP).flatMap(c => [
+    ...(c.accounts || []),
+    ...(c.expenseAccounts || []),
+  ])
+);
+
 const QBO_BASE = {
   production: 'https://quickbooks.api.intuit.com',
   sandbox: 'https://sandbox-quickbooks.api.intuit.com',
@@ -206,18 +216,23 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
             sName.toLowerCase().includes('cost of goods') ||
             sName.toLowerCase().includes('offshore labor');
 
-          if (row.Rows?.Row) walk(row.Rows.Row, nowCOGS);
+          const summaryName = row.Summary?.ColData?.[0]?.value;
 
-          if (row.Summary?.ColData) {
-            const summaryName = row.Summary.ColData[0]?.value;
+          if (summaryName && KNOWN_SUMMARY_ACCOUNTS.has(summaryName)) {
+            // This Section's Summary is a recognized account name (e.g. "Total Civille").
+            // Use the Summary as the authoritative total and skip children entirely —
+            // recursing would double-count the individual Data rows already rolled up here.
             const val = parseFloat(row.Summary.ColData[1]?.value || '0');
+            if (nowCOGS) expense[summaryName] = val;
+            else income[summaryName] = val;
+          } else {
+            // Unrecognized section (e.g. "Income", "Cost of Goods Sold"): recurse normally
+            // to find leaf account values and Data rows within it.
+            if (row.Rows?.Row) walk(row.Rows.Row, nowCOGS);
             if (summaryName) {
-              // Use assignment (not +=) so the outermost Summary always wins.
-              // QBO can emit a "Total Civille" Summary at multiple nesting levels;
-              // since we recurse before capturing the Summary, the outer (authoritative)
-              // total overwrites any inner duplicate accumulated during recursion.
-              if (nowCOGS) expense[summaryName] = val;
-              else income[summaryName] = val;
+              const val = parseFloat(row.Summary.ColData[1]?.value || '0');
+              if (nowCOGS) expense[summaryName] = (expense[summaryName] || 0) + val;
+              else income[summaryName] = (income[summaryName] || 0) + val;
             }
           }
         }

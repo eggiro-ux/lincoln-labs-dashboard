@@ -1,7 +1,14 @@
 'use strict';
 // GET /api/pl-by-lab
-// Returns a full P&L (income, COGS, expenses line items) per lab class,
-// for all completed calendar months of the current year.
+//
+// Fetches the TOTAL (unfiltered) P&L for completed months of the current year,
+// then classifies each line item by lab by matching brand keywords in account
+// and section names.
+//
+// Double-counting prevention: when a Section's header or summary matches a lab,
+// the Section Summary is used as the single authoritative total and children are
+// NOT recursed into (e.g. "Total Civille" captures Phantom Copy without listing
+// Phantom Copy separately).
 
 const axios      = require('axios');
 const tokenStore = require('../tokenStore');
@@ -14,12 +21,12 @@ const QBO_BASE = {
   sandbox:    'https://sandbox-quickbooks.api.intuit.com',
 };
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function completedMonthsThisYear() {
   const today     = new Date();
   const year      = today.getFullYear();
-  const thisMonth = today.getMonth() + 1; // current month is not yet complete
+  const thisMonth = today.getMonth() + 1; // current month is incomplete
   const months    = [];
   for (let m = 1; m < thisMonth; m++) {
     const lastDay = new Date(year, m, 0).getDate();
@@ -32,22 +39,8 @@ function completedMonthsThisYear() {
   return months;
 }
 
-// Fetch active QBO classes and return a name→ID map.
-async function fetchClassIdMap(accessToken, realmId) {
-  const env  = process.env.QBO_ENVIRONMENT || 'production';
-  const base = QBO_BASE[env];
-  const q    = encodeURIComponent("SELECT Id, Name FROM Class WHERE Active = true MAXRESULTS 200");
-  const url  = `${base}/v3/company/${realmId}/query?query=${q}`;
-  const res  = await axios.get(url, {
-    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
-  });
-  const list = res.data?.QueryResponse?.Class || [];
-  const map  = {};
-  list.forEach(c => { map[c.Name] = c.Id; });
-  return map;
-}
-
-async function fetchClassPL(accessToken, realmId, classId, startDate, endDate, accountingMethod) {
+// Single P&L fetch — no class filter, all months in one request.
+async function fetchTotalPL(accessToken, realmId, startDate, endDate, accountingMethod) {
   const env    = process.env.QBO_ENVIRONMENT || 'production';
   const base   = QBO_BASE[env];
   const params = new URLSearchParams({
@@ -55,7 +48,6 @@ async function fetchClassPL(accessToken, realmId, classId, startDate, endDate, a
     end_date:            endDate,
     accounting_method:   accountingMethod,
     summarize_column_by: 'Month',
-    class:               classId,   // QBO requires the class ID, not the name
   });
   const url = `${base}/v3/company/${realmId}/reports/ProfitAndLoss?${params}`;
   const res = await axios.get(url, {
@@ -64,16 +56,32 @@ async function fetchClassPL(accessToken, realmId, classId, startDate, endDate, a
   return res.data;
 }
 
-// Parse a class-filtered P&L report into { income, cogs, expenses } where each
-// is an array of { label, values } — one value per completed-month column.
-function parsePL(pl) {
+// ── Lab matching ──────────────────────────────────────────────────────────────
+// Return the lab key if text contains that lab's brand name; null otherwise.
+// Order matters: check longer/more-specific patterns first.
+function matchLab(text) {
+  if (!text) return null;
+  const t = text.toLowerCase();
+  if (/awesome/.test(t))   return 'AwesomeAPI'; // before generic checks
+  if (/civille/.test(t))   return 'Civille';
+  if (/phantom/.test(t))   return 'Civille';    // Phantom Copy is a Civille sub-brand
+  if (/lincoln/.test(t))   return 'Lincoln Labs';
+  if (/\btruss\b/.test(t)) return 'Truss';
+  if (/\bapps?\b/.test(t)) return 'Apps';       // word-boundary so "AwesomeApp" doesn't match
+  return null;
+}
+
+// ── Core parser ───────────────────────────────────────────────────────────────
+// Walk the P&L tree once and classify line items into per-lab buckets.
+// Returns: { labName: { income: [{label, values}], cogs: [...], expenses: [...] } }
+function extractLabData(pl) {
   const cols = pl.Columns?.Column || [];
 
-  // Same ColData offset logic as qbo.js
+  // Same ColData offset logic used in qbo.js
   const hasAccountCol = cols.some(c => c.ColType === 'Account');
   const colDataOffset = hasAccountCol ? 0 : 1;
 
-  // Per-month Money columns only (exclude YTD / Total summary columns)
+  // Month columns only (exclude YTD / Total summary columns)
   const monthCols = cols
     .map((c, i) => {
       const meta = {};
@@ -86,55 +94,74 @@ function parsePL(pl) {
       c.startDate.substring(0, 7) === c.endDate.substring(0, 7)
     );
 
-  if (monthCols.length === 0) return { income: [], cogs: [], expenses: [] };
+  // Initialize result structure
+  const labs = {};
+  LAB_CLASSES.forEach(lab => { labs[lab] = { income: [], cogs: [], expenses: [] }; });
 
-  // Extract per-month values from a Data row's ColData array
+  if (monthCols.length === 0) return labs;
+
   const getVals = (colData) =>
     monthCols.map(col => parseFloat(colData[col.idx + colDataOffset]?.value || '0'));
 
-  // Recursively collect all Data-row line items within a section tree.
-  // Skips zero-across-all-months rows to keep the table clean.
-  function collectRows(rows) {
-    const items = [];
+  // Recursively walk a list of rows, placing matching items into labs[lab][sectionType].
+  function walk(rows, sectionType) {
     for (const row of rows) {
-      if (row.type === 'Data' && row.ColData) {
-        const label = row.ColData[0]?.value;
-        if (label) {
-          const values = getVals(row.ColData);
-          if (values.some(v => v !== 0)) items.push({ label, values });
+
+      if (row.type === 'Section') {
+        const header  = row.Header?.ColData?.[0]?.value || '';
+        const summary = row.Summary?.ColData?.[0]?.value || '';
+        const lab     = matchLab(header) || matchLab(summary);
+
+        if (lab) {
+          if (row.Summary?.ColData) {
+            // Use the Section Summary as the authoritative total for this lab.
+            // Do NOT recurse into children — that would double-count.
+            const values = getVals(row.Summary.ColData);
+            if (values.some(v => v !== 0)) {
+              labs[lab][sectionType].push({ label: summary || header, values });
+            }
+          } else if (row.Rows?.Row) {
+            // Section matched but has no Summary (unusual) — recurse as fallback.
+            walk(row.Rows.Row, sectionType);
+          }
+        } else {
+          // Section doesn't belong to a specific lab — recurse to find matches inside.
+          if (row.Rows?.Row) walk(row.Rows.Row, sectionType);
         }
-      } else if (row.type === 'Section' && row.Rows?.Row) {
-        items.push(...collectRows(row.Rows.Row));
+      }
+
+      if (row.type === 'Data' && row.ColData) {
+        // Individual account row — classify by name if it matches a lab.
+        const name = row.ColData[0]?.value || '';
+        const lab  = matchLab(name);
+        if (lab) {
+          const values = getVals(row.ColData);
+          if (values.some(v => v !== 0)) {
+            labs[lab][sectionType].push({ label: name, values });
+          }
+        }
       }
     }
-    return items;
   }
 
-  const income   = [];
-  const cogs     = [];
-  const expenses = [];
+  // Top-level P&L sections determine whether children are income, COGS, or expenses.
+  for (const row of (pl.Rows?.Row || [])) {
+    if (row.type !== 'Section') continue;
+    const h = (row.Header?.ColData?.[0]?.value || '').toLowerCase();
+    const s = (row.Summary?.ColData?.[0]?.value || '').toLowerCase();
 
-  for (const topRow of (pl.Rows?.Row || [])) {
-    if (topRow.type !== 'Section') continue;
-
-    const h = (topRow.Header?.ColData?.[0]?.value || '').toLowerCase();
-    const s = (topRow.Summary?.ColData?.[0]?.value || '').toLowerCase();
-
-    // Skip QBO's computed summary-only sections (no children to recurse)
+    // Skip QBO computed summary rows (no real children)
     if (h === 'gross profit' || s === 'gross profit') continue;
-    if (h === 'net income'   || s === 'net income')   continue;
+    if (h.startsWith('net ')  || s.startsWith('net '))  continue;
 
     const isIncome = h.includes('income') || h.includes('revenue') || h.includes('sales');
     const isCOGS   = h.includes('cost of goods') || h.includes('cogs');
+    const sType    = isIncome ? 'income' : isCOGS ? 'cogs' : 'expenses';
 
-    if (!topRow.Rows?.Row) continue;
-
-    if (isIncome)    income.push(...collectRows(topRow.Rows.Row));
-    else if (isCOGS) cogs.push(...collectRows(topRow.Rows.Row));
-    else             expenses.push(...collectRows(topRow.Rows.Row));
+    if (row.Rows?.Row) walk(row.Rows.Row, sType);
   }
 
-  return { income, cogs, expenses };
+  return labs;
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -153,33 +180,17 @@ async function getPlByLabData(req, res) {
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 
-    // QBO Reports API requires class IDs, not names — fetch the mapping first.
-    const classIdMap = await fetchClassIdMap(accessToken, realmId);
+    const pl   = await fetchTotalPL(accessToken, realmId, startDate, endDate, am);
+    const labs = extractLabData(pl);
 
-    // Only fetch labs that have a matching QBO class; log any misses.
-    const labsToFetch = LAB_CLASSES.filter(lab => {
-      if (!classIdMap[lab]) {
-        console.warn(`[plByLab] No QBO class found for "${lab}" — available:`, Object.keys(classIdMap).join(', '));
-      }
-      return !!classIdMap[lab];
-    });
-
-    const results = await Promise.all(
-      labsToFetch.map(lab => fetchClassPL(accessToken, realmId, classIdMap[lab], startDate, endDate, am))
-    );
-
-    const labs = {};
-    labsToFetch.forEach((lab, i) => { labs[lab] = parsePL(results[i]); });
-
-    // Include all lab names in order (even ones without data) so the UI tabs are stable.
     res.json({ months: months.map(m => m.label), labs, labNames: LAB_CLASSES });
   } catch (err) {
-    const qboError = err.response?.data;
-    console.error('/api/pl-by-lab error:', qboError || err.message);
+    const qboErr = err.response?.data;
+    console.error('/api/pl-by-lab error:', qboErr || err.message);
     res.status(500).json({
       error:  'Failed to fetch P&L by lab data',
       detail: err.message,
-      qbo:    qboError || null,
+      qbo:    qboErr || null,
     });
   }
 }

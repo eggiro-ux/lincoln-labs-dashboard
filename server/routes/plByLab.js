@@ -1,7 +1,7 @@
 'use strict';
 // GET /api/pl-by-lab
-// Fetches QBO ProfitAndLoss filtered by class for each Lab, across all completed
-// calendar months of the current year. All labs are fetched in parallel.
+// Returns a full P&L (income, COGS, expenses line items) per lab class,
+// for all completed calendar months of the current year.
 
 const axios      = require('axios');
 const tokenStore = require('../tokenStore');
@@ -17,10 +17,10 @@ const QBO_BASE = {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function completedMonthsThisYear() {
-  const today    = new Date();
-  const year     = today.getFullYear();
-  const thisMonth = today.getMonth() + 1; // 1-based; current month is not yet complete
-  const months   = [];
+  const today     = new Date();
+  const year      = today.getFullYear();
+  const thisMonth = today.getMonth() + 1; // current month is not yet complete
+  const months    = [];
   for (let m = 1; m < thisMonth; m++) {
     const lastDay = new Date(year, m, 0).getDate();
     months.push({
@@ -33,8 +33,8 @@ function completedMonthsThisYear() {
 }
 
 async function fetchClassPL(accessToken, realmId, className, startDate, endDate, accountingMethod) {
-  const env  = process.env.QBO_ENVIRONMENT || 'production';
-  const base = QBO_BASE[env];
+  const env    = process.env.QBO_ENVIRONMENT || 'production';
+  const base   = QBO_BASE[env];
   const params = new URLSearchParams({
     start_date:          startDate,
     end_date:            endDate,
@@ -44,17 +44,13 @@ async function fetchClassPL(accessToken, realmId, className, startDate, endDate,
   });
   const url = `${base}/v3/company/${realmId}/reports/ProfitAndLoss?${params}`;
   const res = await axios.get(url, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      Accept:        'application/json',
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
   return res.data;
 }
 
-// Parse a class-filtered P&L report.
-// Returns { income, cogs, grossProfit, expenses, netIncome } — each an array
-// of numbers aligned to the completed-month columns in the report.
+// Parse a class-filtered P&L report into { income, cogs, expenses } where each
+// is an array of { label, values } — one value per completed-month column.
 function parsePL(pl) {
   const cols = pl.Columns?.Column || [];
 
@@ -62,7 +58,7 @@ function parsePL(pl) {
   const hasAccountCol = cols.some(c => c.ColType === 'Account');
   const colDataOffset = hasAccountCol ? 0 : 1;
 
-  // Identify per-month Money columns (excludes YTD / Total columns)
+  // Per-month Money columns only (exclude YTD / Total summary columns)
   const monthCols = cols
     .map((c, i) => {
       const meta = {};
@@ -75,61 +71,55 @@ function parsePL(pl) {
       c.startDate.substring(0, 7) === c.endDate.substring(0, 7)
     );
 
-  const n = monthCols.length;
-  const zeros = () => Array(n).fill(0);
+  if (monthCols.length === 0) return { income: [], cogs: [], expenses: [] };
 
-  const income      = zeros();
-  const cogs        = zeros();
-  const grossProfit = zeros();
-  const expenses    = zeros();
-  const netIncome   = zeros();
+  // Extract per-month values from a Data row's ColData array
+  const getVals = (colData) =>
+    monthCols.map(col => parseFloat(colData[col.idx + colDataOffset]?.value || '0'));
 
-  let hasGrossProfit = false;
-  let hasNetIncome   = false;
-
-  const getVals = (row) =>
-    monthCols.map(col =>
-      parseFloat(row.Summary?.ColData?.[col.idx + colDataOffset]?.value || '0')
-    );
-
-  for (const row of (pl.Rows?.Row || [])) {
-    if (row.type !== 'Section' || !row.Summary?.ColData) continue;
-
-    const summaryLabel = (row.Summary.ColData[0]?.value || '').toLowerCase();
-    const headerLabel  = (row.Header?.ColData?.[0]?.value || '').toLowerCase();
-
-    if (summaryLabel.includes('total income') || summaryLabel.includes('total revenue')) {
-      getVals(row).forEach((v, i) => { income[i] = v; });
-
-    } else if (summaryLabel.includes('total cost of goods') || headerLabel.includes('cost of goods')) {
-      getVals(row).forEach((v, i) => { cogs[i] = v; });
-
-    } else if (summaryLabel === 'gross profit' || headerLabel === 'gross profit') {
-      hasGrossProfit = true;
-      getVals(row).forEach((v, i) => { grossProfit[i] = v; });
-
-    } else if (summaryLabel.includes('total expense')) {
-      getVals(row).forEach((v, i) => { expenses[i] = v; });
-
-    } else if (summaryLabel === 'net income' || headerLabel === 'net income') {
-      hasNetIncome = true;
-      getVals(row).forEach((v, i) => { netIncome[i] = v; });
+  // Recursively collect all Data-row line items within a section tree.
+  // Skips zero-across-all-months rows to keep the table clean.
+  function collectRows(rows) {
+    const items = [];
+    for (const row of rows) {
+      if (row.type === 'Data' && row.ColData) {
+        const label = row.ColData[0]?.value;
+        if (label) {
+          const values = getVals(row.ColData);
+          if (values.some(v => v !== 0)) items.push({ label, values });
+        }
+      } else if (row.type === 'Section' && row.Rows?.Row) {
+        items.push(...collectRows(row.Rows.Row));
+      }
     }
+    return items;
   }
 
-  // Derive any values QBO didn't return directly
-  if (!hasGrossProfit) {
-    for (let i = 0; i < n; i++) {
-      grossProfit[i] = Math.round((income[i] - cogs[i]) * 100) / 100;
-    }
-  }
-  if (!hasNetIncome) {
-    for (let i = 0; i < n; i++) {
-      netIncome[i] = Math.round((grossProfit[i] - expenses[i]) * 100) / 100;
-    }
+  const income   = [];
+  const cogs     = [];
+  const expenses = [];
+
+  for (const topRow of (pl.Rows?.Row || [])) {
+    if (topRow.type !== 'Section') continue;
+
+    const h = (topRow.Header?.ColData?.[0]?.value || '').toLowerCase();
+    const s = (topRow.Summary?.ColData?.[0]?.value || '').toLowerCase();
+
+    // Skip QBO's computed summary-only sections (no children to recurse)
+    if (h === 'gross profit' || s === 'gross profit') continue;
+    if (h === 'net income'   || s === 'net income')   continue;
+
+    const isIncome = h.includes('income') || h.includes('revenue') || h.includes('sales');
+    const isCOGS   = h.includes('cost of goods') || h.includes('cogs');
+
+    if (!topRow.Rows?.Row) continue;
+
+    if (isIncome)    income.push(...collectRows(topRow.Rows.Row));
+    else if (isCOGS) cogs.push(...collectRows(topRow.Rows.Row));
+    else             expenses.push(...collectRows(topRow.Rows.Row));
   }
 
-  return { income, cogs, grossProfit, expenses, netIncome };
+  return { income, cogs, expenses };
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -153,9 +143,7 @@ async function getPlByLabData(req, res) {
     );
 
     const labs = {};
-    LAB_CLASSES.forEach((lab, i) => {
-      labs[lab] = parsePL(results[i]);
-    });
+    LAB_CLASSES.forEach((lab, i) => { labs[lab] = parsePL(results[i]); });
 
     res.json({ months: months.map(m => m.label), labs, labNames: LAB_CLASSES });
   } catch (err) {

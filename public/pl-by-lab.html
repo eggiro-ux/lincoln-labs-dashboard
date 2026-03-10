@@ -1,377 +1,533 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>P&amp;L by Lab — Lincoln Labs</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,wght@0,300;1,300&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>P&L by Lab — Lincoln Labs</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button { outline: none; cursor: pointer; }
+body { font-family: 'DM Mono', monospace; font-size: 0.82rem; background: #0f0f0e; color: #e8e6e0; }
 
-    :root {
-      --bg:       #0f0f0e;
-      --surface:  #18181b;
-      --border:   #2a2a27;
-      --text:     #e8e6e0;
-      --muted:    #7a7870;
-      --green:    #4ade80;
-      --red:      #f87171;
-      --font-mono: 'DM Mono', monospace;
-    }
+/* ── Theme tokens on .shell ─────────────────────────────────────────────── */
+.shell.dark  {
+  --bg: #0f0f0e; --surface: #191917; --surfaceHigh: #1d1d1b;
+  --border: #2a2a27; --text: #e8e6e0; --muted: #7a7870;
+  --action: #4ade80; --neg: #f87171;
+}
+.shell.light {
+  --bg: #f4f4f2; --surface: #ffffff; --surfaceHigh: #e8e7e3;
+  --border: #c8c6c0; --text: #111110; --muted: #5a5850;
+  --action: #15803d; --neg: #b91c1c;
+}
+.shell {
+  padding: 40px 48px 64px;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  transition: background 0.2s, color 0.2s;
+}
 
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-mono);
-      font-size: 13px;
-      min-height: 100vh;
-      padding: 0 48px 64px;
-    }
+/* ── Header ─────────────────────────────────────────────────────────────── */
+header {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  margin-bottom: 32px; padding-bottom: 24px; border-bottom: 1px solid var(--border);
+}
+header h1 {
+  font-family: 'Fraunces', serif; font-weight: 300;
+  font-size: 2.4rem; letter-spacing: -0.02em; line-height: 1;
+}
+header h1 em { font-style: italic; color: var(--muted); }
+header p { margin-top: 6px; font-size: 0.72rem; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.header-controls { display: flex; gap: 8px; align-items: center; flex-shrink: 0; margin-left: 24px; }
+#themeBtn {
+  background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+  width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 14px;
+}
+#themeBtn:hover { border-color: var(--muted); }
 
-    /* ── Controls ─────────────────────────────────────────────────────────── */
-    .controls {
-      display: flex;
-      align-items: center;
-      gap: 24px;
-      margin-bottom: 32px;
-      flex-wrap: wrap;
-    }
+/* ── Segmented controls ─────────────────────────────────────────────────── */
+.seg-toggle { display: flex; }
+.seg-btn {
+  background: var(--surface); color: var(--muted);
+  font-family: 'DM Mono', monospace; font-size: 0.68rem;
+  padding: 6px 16px; letter-spacing: 0.06em; text-transform: uppercase;
+  border: 1px solid var(--border); transition: border-color 0.15s, color 0.15s;
+}
+.seg-btn + .seg-btn { border-left: none; }
+.seg-btn.active { border-color: var(--muted); color: var(--text); }
+.seg-btn.active + .seg-btn { border-left: 1px solid var(--border); }
+.seg-btn:hover:not(.active) { color: var(--text); }
+.seg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+#refreshBtn { border-left: 1px solid var(--border) !important; }
 
-    .page-title {
-      font-family: 'Fraunces', serif;
-      font-style: italic;
-      font-weight: 300;
-      font-size: 1.4rem;
-      color: var(--text);
-      letter-spacing: -0.01em;
-      margin-right: auto;
-    }
+/* ── Tab nav ────────────────────────────────────────────────────────────── */
+.tab-nav {
+  display: flex; border-bottom: 1px solid var(--border);
+  margin-bottom: 32px; overflow-x: auto; scrollbar-width: none;
+}
+.tab-nav::-webkit-scrollbar { display: none; }
+.tab-btn {
+  padding: 10px 24px; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase;
+  cursor: pointer; margin-bottom: -1px; color: var(--muted);
+  border-bottom: 2px solid transparent;
+  background: none; border-top: none; border-left: none; border-right: none;
+  font-family: 'DM Mono', monospace; transition: color 0.15s; white-space: nowrap;
+}
+.tab-btn.active { color: var(--text); border-bottom: 2px solid var(--text); }
+.tab-btn:hover:not(.active) { color: var(--text); }
 
-    .toggle-group {
-      display: flex;
-      border: 1px solid var(--border);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .toggle-btn {
-      background: none;
-      border: none;
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      cursor: pointer;
-      transition: background 0.15s, color 0.15s;
-    }
-    .toggle-btn:not(:last-child) { border-right: 1px solid var(--border); }
-    .toggle-btn.active {
-      background: var(--border);
-      color: var(--text);
-    }
-    .toggle-btn:hover:not(.active) { color: var(--text); }
+/* ── KPI grid ────────────────────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px; background: var(--border); margin-bottom: 32px;
+}
+.kpi-card { background: var(--surface); padding: 18px 20px; }
+.kpi-label {
+  font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 6px; display: flex; align-items: center; gap: 6px; color: var(--muted);
+}
+.kpi-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.kpi-value { font-family: 'Fraunces', serif; font-weight: 600; font-size: 1.35rem; letter-spacing: -0.02em; line-height: 1; }
+.kpi-sub { font-size: 0.62rem; margin-top: 4px; color: var(--muted); }
 
-    .btn {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 6px 14px;
-      border-radius: 4px;
-      cursor: pointer;
-      transition: color 0.15s, border-color 0.15s;
-    }
-    .btn:hover { color: var(--text); border-color: #5a5a57; }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+/* ── Controls row ────────────────────────────────────────────────────────── */
+.controls { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+.controls-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 1.1rem; }
 
-    /* ── Month tabs ───────────────────────────────────────────────────────── */
-    .month-tabs {
-      display: flex;
-      gap: 0;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 28px;
-      overflow-x: auto;
-      scrollbar-width: none;
-    }
-    .month-tabs::-webkit-scrollbar { display: none; }
+/* ── P&L table ───────────────────────────────────────────────────────────── */
+.table-wrap { border: 1px solid var(--border); }
+table { width: 100%; border-collapse: collapse; font-size: 0.74rem; }
+thead th {
+  padding: 9px 24px; font-size: 0.63rem; letter-spacing: 0.09em; text-transform: uppercase;
+  color: var(--muted); font-weight: 400; border-bottom: 1px solid var(--border);
+  font-family: 'DM Mono', monospace; text-align: right;
+}
+thead th:first-child { text-align: left; width: 40%; }
+tbody tr.data-row:hover td { background: var(--surfaceHigh); }
+td { padding: 9px 24px; border-bottom: 1px solid var(--border); color: var(--text); }
+td.label { color: var(--muted); padding-left: 32px; }
+td.num { text-align: right; font-family: 'DM Mono', monospace; }
+tr.section-hdr td {
+  font-size: 0.63rem; letter-spacing: 0.09em; text-transform: uppercase;
+  font-weight: 400; background: var(--surfaceHigh); padding: 10px 24px;
+}
+tr.subtotal td { background: var(--surfaceHigh); font-size: 0.74rem; }
+tr.subtotal td.num { font-family: 'DM Mono', monospace; }
+tr.net-row td {
+  background: var(--surfaceHigh); padding: 13px 24px;
+  font-family: 'Fraunces', serif; font-weight: 600; font-size: 0.9rem; text-align: right;
+}
+tr.net-row td:first-child { text-align: left; }
+.pos { color: var(--action); }
+.neg-val { color: var(--neg); }
 
-    .month-tab {
-      background: none;
-      border: none;
-      border-bottom: 2px solid transparent;
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: 0.65rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      padding: 8px 18px 10px;
-      cursor: pointer;
-      white-space: nowrap;
-      transition: color 0.15s;
-      margin-bottom: -1px;
-    }
-    .month-tab:hover { color: var(--text); }
-    .month-tab.active {
-      color: var(--text);
-      border-bottom-color: var(--text);
-    }
+/* ── State messages ─────────────────────────────────────────────────────── */
+.state-msg { padding: 64px; text-align: center; color: var(--muted); }
+.state-error { color: var(--neg); }
 
-    /* ── P&L Table ────────────────────────────────────────────────────────── */
-    .table-wrap {
-      overflow-x: auto;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 640px;
-    }
-
-    thead th {
-      font-size: 0.62rem;
-      letter-spacing: 0.08em;
-      text-transform: uppercase;
-      color: var(--muted);
-      font-weight: 400;
-      padding: 0 16px 12px;
-      text-align: right;
-      white-space: nowrap;
-    }
-    thead th:first-child {
-      text-align: left;
-      padding-left: 0;
-      width: 180px;
-    }
-
-    tbody tr {
-      border-top: 1px solid var(--border);
-    }
-    tbody tr:first-child {
-      border-top: none;
-    }
-
-    tbody td {
-      padding: 10px 16px;
-      text-align: right;
-      white-space: nowrap;
-      font-size: 0.78rem;
-    }
-    tbody td:first-child {
-      text-align: left;
-      padding-left: 0;
-      color: var(--muted);
-      font-size: 0.7rem;
-      letter-spacing: 0.04em;
-    }
-
-    tr.row-gross td:first-child,
-    tr.row-net   td:first-child {
-      color: var(--text);
-      font-size: 0.72rem;
-    }
-    tr.row-gross td,
-    tr.row-net   td {
-      font-weight: 500;
-      border-top: 1px solid #3a3a37;
-    }
-    tr.row-divider td {
-      padding-top: 0;
-      padding-bottom: 0;
-      height: 12px;
-      border: none;
-    }
-
-    .val-pos { color: var(--text); }
-    .val-neg { color: var(--red); }
-    .val-zero { color: var(--muted); }
-
-    /* Highlight Net Income green/red */
-    tr.row-net .val-pos { color: var(--green); }
-    tr.row-net .val-neg { color: var(--red); }
-
-    /* ── States ───────────────────────────────────────────────────────────── */
-    .state-msg {
-      color: var(--muted);
-      font-size: 0.75rem;
-      padding: 48px 0;
-      text-align: center;
-    }
-    .state-error { color: var(--red); }
-
-    @media (max-width: 600px) {
-      body { padding: 0 16px 48px; }
-      .page-title { font-size: 1.1rem; }
-    }
-  </style>
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .shell { padding: 24px 16px 48px; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  header h1 { font-size: 1.8rem; }
+  header { flex-direction: column; align-items: flex-start; gap: 16px; }
+  .header-controls { margin-left: 0; }
+}
+</style>
 </head>
 <body>
 <script src="/nav.js"></script>
+<div class="shell dark" id="shell">
 
-<div class="controls">
-  <h1 class="page-title">P&amp;L by Lab</h1>
+  <!-- ── Header ─────────────────────────────────────────────────────────── -->
+  <header>
+    <div>
+      <h1>Lincoln Labs <em>P&amp;L</em></h1>
+      <p id="subtitle">Loading…</p>
+    </div>
+    <div class="header-controls">
+      <div class="seg-toggle" id="amToggle">
+        <button class="seg-btn active" data-val="Accrual" onclick="setAM('Accrual')">Accrual</button>
+        <button class="seg-btn"        data-val="Cash"    onclick="setAM('Cash')">Cash</button>
+      </div>
+      <button class="seg-btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
+      <button id="themeBtn" onclick="toggleTheme()">☀</button>
+    </div>
+  </header>
 
-  <div class="toggle-group" id="amToggle">
-    <button class="toggle-btn active" data-val="Accrual" onclick="setAM('Accrual')">Accrual</button>
-    <button class="toggle-btn"        data-val="Cash"    onclick="setAM('Cash')">Cash</button>
+  <!-- ── BU Tabs ────────────────────────────────────────────────────────── -->
+  <div class="tab-nav" id="tabNav"></div>
+
+  <!-- ── KPI cards ─────────────────────────────────────────────────────── -->
+  <div class="kpi-grid" id="kpiGrid">
+    <div class="kpi-card" style="grid-column:1/-1;text-align:center;color:var(--muted)">Loading…</div>
   </div>
 
-  <button class="btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
-</div>
+  <!-- ── Controls ──────────────────────────────────────────────────────── -->
+  <div class="controls">
+    <div class="controls-title">Profit &amp; Loss Statement</div>
+    <div class="seg-toggle" id="periodToggle"></div>
+  </div>
 
-<div id="monthTabs" class="month-tabs"></div>
+  <!-- ── P&L Table ─────────────────────────────────────────────────────── -->
+  <div class="table-wrap" id="tableWrap">
+    <div class="state-msg">Loading…</div>
+  </div>
 
-<div id="content" class="state-msg">Loading…</div>
+</div><!-- /.shell -->
 
 <script>
 (function () {
   'use strict';
 
-  // ── State ──────────────────────────────────────────────────────────────────
-  let data         = null;  // full API response
-  let selectedMonth = 0;   // index into data.months
-  let accountingMethod = 'Accrual';
-
-  const LAB_COLORS = {
-    'Apps':         '#a855f7',
-    'AwesomeAPI':   '#22c55e',
-    'Civille':      '#f97316',
-    'Lincoln Labs': '#3b82f6',
-    'Truss':        '#e879f9',
+  const SERIES = {
+    'Apps':         '#f97316',
+    'AwesomeAPI':   '#eab308',
+    'Civille':      '#22c55e',
+    'Lincoln Labs': '#06b6d4',
+    'Truss':        '#a855f7',
   };
 
-  // ── Formatting ─────────────────────────────────────────────────────────────
-  function fmt(n) {
+  // ── State ─────────────────────────────────────────────────────────────────
+  let data      = null;   // full API response
+  let activeBU  = null;   // selected lab name
+  let period    = null;   // number index into data.months, or 'ytd'
+  let am        = 'Accrual';
+  let isDark    = true;
+
+  // ── Formatting ────────────────────────────────────────────────────────────
+  const fd = n => {
     if (n == null || isNaN(n)) return '—';
-    const abs = Math.abs(n);
-    const s = abs.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-    if (n < 0) return `($${s})`;
-    if (n === 0) return '$0';
-    return `$${s}`;
-  }
+    const a = Math.abs(n);
+    const s = a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return n < 0 ? `(${s})` : s;
+  };
 
-  function valClass(n) {
-    if (!n || n === 0) return 'val-zero';
-    return n > 0 ? 'val-pos' : 'val-neg';
-  }
+  const kpiFmt = n => {
+    if (n == null || isNaN(n)) return '—';
+    const a = Math.abs(n);
+    let s;
+    if (a >= 1_000_000)     s = `$${(a / 1_000_000).toFixed(1)}M`;
+    else if (a >= 100_000)  s = `$${Math.round(a / 1000)}K`;
+    else if (a >= 1_000)    s = `$${Math.round(a).toLocaleString('en-US')}`;
+    else                    s = `$${a.toFixed(0)}`;
+    return n < 0 ? `(${s})` : s;
+  };
 
-  // ── Controls ───────────────────────────────────────────────────────────────
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  window.toggleTheme = function () {
+    isDark = !isDark;
+    const shell = document.getElementById('shell');
+    shell.className = isDark ? 'shell dark' : 'shell light';
+    document.getElementById('themeBtn').textContent = isDark ? '☀' : '☾';
+  };
+
+  // ── Accounting method ──────────────────────────────────────────────────────
   window.setAM = function (val) {
-    accountingMethod = val;
-    document.querySelectorAll('#amToggle .toggle-btn').forEach(b => {
+    if (am === val) return;
+    am = val;
+    document.querySelectorAll('#amToggle .seg-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.val === val);
     });
     load();
   };
 
-  // ── Month tabs ─────────────────────────────────────────────────────────────
-  function renderTabs() {
-    const el = document.getElementById('monthTabs');
-    el.innerHTML = '';
-    if (!data || !data.months.length) return;
-    data.months.forEach((m, i) => {
-      const btn = document.createElement('button');
-      btn.className = 'month-tab' + (i === selectedMonth ? ' active' : '');
-      btn.textContent = m;
-      btn.onclick = () => { selectedMonth = i; renderTabs(); renderTable(); };
-      el.appendChild(btn);
-    });
-    // Scroll active tab into view
-    const active = el.querySelector('.active');
-    if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  // ── Data helpers ───────────────────────────────────────────────────────────
+  function sumItems(items, idx) {
+    if (!items || !items.length) return 0;
+    if (idx === 'ytd') return items.reduce((s, it) => s + it.values.reduce((a, b) => a + b, 0), 0);
+    return items.reduce((s, it) => s + (it.values[idx] || 0), 0);
   }
 
-  // ── Table ──────────────────────────────────────────────────────────────────
-  function renderTable() {
-    const el = document.getElementById('content');
+  function getLabData() {
+    return data?.labs?.[activeBU] || { income: [], cogs: [], expenses: [] };
+  }
+
+  function calcMetrics(labData, idx) {
+    const inc  = sumItems(labData.income, idx);
+    const cogs = sumItems(labData.cogs, idx);
+    const gp   = inc - cogs;
+    const exp  = sumItems(labData.expenses, idx);
+    const net  = gp - exp;
+    return {
+      inc, cogs, gp, exp, net,
+      gpPct:  inc ? (gp  / inc * 100) : null,
+      netPct: inc ? (net / inc * 100) : null,
+    };
+  }
+
+  // ── Subtitle ──────────────────────────────────────────────────────────────
+  function updateSubtitle() {
+    if (!data || !data.months.length) return;
+    const months = data.months;
+    let range;
+    if (period === 'ytd') {
+      range = months.length > 1 ? `${months[0]} – ${months[months.length - 1]}` : months[0];
+    } else {
+      range = months[period] || months[months.length - 1];
+    }
+    document.getElementById('subtitle').textContent =
+      `Business Unit View · ${range} · ${am}`;
+  }
+
+  // ── Tab nav ────────────────────────────────────────────────────────────────
+  function renderTabs() {
+    document.getElementById('tabNav').innerHTML =
+      (data?.labNames || []).map(lab =>
+        `<button class="tab-btn${lab === activeBU ? ' active' : ''}" onclick="setTab('${lab.replace(/'/g, "\\'")}')">${lab}</button>`
+      ).join('');
+  }
+
+  window.setTab = function (lab) {
+    activeBU = lab;
+    renderTabs();
+    renderKPI();
+    renderTable();
+  };
+
+  // ── Period toggle ──────────────────────────────────────────────────────────
+  function renderPeriodToggle() {
     if (!data || !data.months.length) {
-      el.className = 'state-msg';
-      el.textContent = 'No completed months yet for this year.';
+      document.getElementById('periodToggle').innerHTML = '';
       return;
     }
+    const months   = data.months;
+    const shortLbl = m => m.split(' ')[0]; // "Jan 2026" → "Jan"
+    let html = months.map((m, i) =>
+      `<button class="seg-btn${period === i ? ' active' : ''}" onclick="setPeriod(${i})">${shortLbl(m)}</button>`
+    ).join('');
+    html += `<button class="seg-btn${period === 'ytd' ? ' active' : ''}" onclick="setPeriod('ytd')" style="border-left:1px solid var(--border)">YTD</button>`;
+    document.getElementById('periodToggle').innerHTML = html;
+  }
 
-    const labs = data.labNames;
-    const mi   = selectedMonth;
+  window.setPeriod = function (idx) {
+    period = idx;
+    renderPeriodToggle();
+    renderKPI();
+    renderTable();
+    updateSubtitle();
+  };
 
-    const rows = [
-      { key: 'income',      label: 'Revenue',          rowClass: 'row-income'   },
-      { key: 'cogs',        label: 'Cost of Revenue',  rowClass: 'row-cogs'     },
-      { key: 'grossProfit', label: 'Gross Profit',     rowClass: 'row-gross'    },
-      { divider: true },
-      { key: 'expenses',    label: 'Operating Expenses', rowClass: 'row-expenses' },
-      { key: 'netIncome',   label: 'Net Income',        rowClass: 'row-net'      },
+  // ── KPI cards ──────────────────────────────────────────────────────────────
+  function renderKPI() {
+    const el = document.getElementById('kpiGrid');
+    if (!data) return;
+
+    const labData = getLabData();
+    const color   = SERIES[activeBU] || '#7a7870';
+    const m       = calcMetrics(labData, period);
+    const hasInc  = labData.income.length > 0;
+
+    // MoM: only meaningful when a specific (non-first) month is selected
+    let mom = null;
+    if (typeof period === 'number' && period > 0) {
+      const prev = calcMetrics(labData, period - 1);
+      if (prev.net !== 0) mom = (m.net - prev.net) / Math.abs(prev.net) * 100;
+    }
+
+    const momLabel = typeof period === 'number' && period > 0
+      ? `vs ${data.months[period - 1]}`
+      : period === 'ytd' ? 'Full year' : 'First month';
+
+    const kpis = hasInc ? [
+      {
+        label: 'Total Revenue',
+        value: kpiFmt(m.inc),
+        sub:   null,
+        color,
+      },
+      {
+        label: 'Gross Profit',
+        value: kpiFmt(m.gp),
+        sub:   m.gpPct != null ? `GP ${m.gpPct.toFixed(1)}%` : null,
+        color: m.gp  >= 0 ? 'var(--action)' : 'var(--neg)',
+      },
+      {
+        label: 'Net Income',
+        value: kpiFmt(m.net),
+        sub:   m.netPct != null ? `Net ${m.netPct.toFixed(1)}%` : null,
+        color: m.net >= 0 ? 'var(--action)' : 'var(--neg)',
+      },
+      {
+        label: 'MoM Net',
+        value: mom != null ? `${mom >= 0 ? '+' : ''}${mom.toFixed(1)}%` : '—',
+        sub:   momLabel,
+        color: mom != null ? (mom >= 0 ? 'var(--action)' : 'var(--neg)') : 'var(--muted)',
+      },
+    ] : [
+      { label: 'Total Expenses', value: kpiFmt(m.exp),                            sub: null,          color: 'var(--neg)'   },
+      { label: 'Jan Expenses',   value: kpiFmt(sumItems(labData.expenses, 0)),    sub: null,          color: 'var(--muted)' },
+      { label: 'YTD Expenses',   value: kpiFmt(sumItems(labData.expenses, 'ytd')), sub: null,         color: 'var(--muted)' },
+      {
+        label: 'MoM Change',
+        value: mom != null ? `${mom >= 0 ? '+' : ''}${mom.toFixed(1)}%` : '—',
+        sub: momLabel,
+        color: mom != null ? (mom <= 0 ? 'var(--action)' : 'var(--neg)') : 'var(--muted)',
+      },
     ];
 
-    let html = '<div class="table-wrap"><table>';
+    el.innerHTML = kpis.map(k => `
+      <div class="kpi-card">
+        <div class="kpi-label"><span class="kpi-dot" style="background:${k.color}"></span>${k.label}</div>
+        <div class="kpi-value" style="color:${k.color}">${k.value}</div>
+        ${k.sub ? `<div class="kpi-sub">${k.sub}</div>` : ''}
+      </div>`).join('');
+  }
 
-    // Header
-    html += '<thead><tr><th></th>';
-    labs.forEach(lab => {
-      const color = LAB_COLORS[lab] || '#e8e6e0';
-      html += `<th style="color:${color}">${lab}</th>`;
-    });
-    html += '</tr></thead>';
+  // ── P&L table ─────────────────────────────────────────────────────────────
+  function renderTable() {
+    const el = document.getElementById('tableWrap');
+    if (!data) { el.innerHTML = '<div class="state-msg">Loading…</div>'; return; }
 
-    // Body
-    html += '<tbody>';
-    rows.forEach(row => {
-      if (row.divider) {
-        html += `<tr class="row-divider">${'<td></td>'.repeat(labs.length + 1)}</tr>`;
-        return;
+    const labData = getLabData();
+    const color   = SERIES[activeBU] || '#7a7870';
+    const hasInc  = labData.income.length > 0;
+    const hasCOGS = labData.cogs.length > 0;
+    const months  = data.months;
+
+    // Column headers and value extractors
+    const isYTD    = period === 'ytd';
+    const showCols = isYTD ? [...months, 'YTD'] : [months[period]];
+
+    const itemVals = (item) => {
+      if (isYTD) return [...item.values, item.values.reduce((a, b) => a + b, 0)];
+      return [item.values[period] || 0];
+    };
+
+    const sumVals = (items) => {
+      if (isYTD) {
+        return [...months.map((_, mi) => sumItems(items, mi)), sumItems(items, 'ytd')];
       }
-      html += `<tr class="${row.rowClass}">`;
-      html += `<td>${row.label}</td>`;
-      labs.forEach(lab => {
-        const labData = data.labs[lab];
-        const val = labData ? (labData[row.key]?.[mi] ?? null) : null;
-        html += `<td class="${valClass(val)}">${fmt(val)}</td>`;
-      });
-      html += '</tr>';
-    });
-    html += '</tbody></table></div>';
+      return [sumItems(items, period)];
+    };
 
-    el.className = '';
+    const gpVals = () => {
+      if (isYTD) {
+        return [
+          ...months.map((_, mi) => sumItems(labData.income, mi) - sumItems(labData.cogs, mi)),
+          sumItems(labData.income, 'ytd') - sumItems(labData.cogs, 'ytd'),
+        ];
+      }
+      return [sumItems(labData.income, period) - sumItems(labData.cogs, period)];
+    };
+
+    const netVals = () => {
+      const calc = (idx) => {
+        const inc  = sumItems(labData.income, idx);
+        const cogs = sumItems(labData.cogs, idx);
+        const exp  = sumItems(labData.expenses, idx);
+        return hasInc ? (inc - cogs - exp) : -exp;
+      };
+      if (isYTD) return [...months.map((_, mi) => calc(mi)), calc('ytd')];
+      return [calc(period)];
+    };
+
+    const fmtCells = (vals, colorFn) =>
+      vals.map(v => {
+        const cls = colorFn ? colorFn(v) : (v < 0 ? 'neg-val' : '');
+        return `<td class="num${cls ? ` ${cls}` : ''}">${fd(v)}</td>`;
+      }).join('');
+
+    const colSpan = 1 + showCols.length;
+    const netV    = netVals();
+    const netColor = netV[netV.length - 1] >= 0 ? 'var(--action)' : 'var(--neg)';
+
+    let html = `<table>
+      <thead><tr>
+        <th style="text-align:left">Line Item</th>
+        ${showCols.map(h => `<th>${h}</th>`).join('')}
+      </tr></thead>
+      <tbody>`;
+
+    if (hasInc) {
+      html += `<tr class="section-hdr"><td colspan="${colSpan}" style="color:${color}">Income</td></tr>`;
+      labData.income.forEach(it => {
+        html += `<tr class="data-row"><td class="label">${it.label}</td>${fmtCells(itemVals(it))}</tr>`;
+      });
+      html += `<tr class="subtotal"><td>Total Income</td>${fmtCells(sumVals(labData.income))}</tr>`;
+    }
+
+    if (hasCOGS) {
+      html += `<tr class="section-hdr"><td colspan="${colSpan}" style="color:${color}">Cost of Goods Sold</td></tr>`;
+      labData.cogs.forEach(it => {
+        html += `<tr class="data-row"><td class="label">${it.label}</td>${fmtCells(itemVals(it))}</tr>`;
+      });
+      html += `<tr class="subtotal"><td>Total COGS</td>${fmtCells(sumVals(labData.cogs))}</tr>`;
+      if (hasInc) {
+        html += `<tr class="subtotal"><td>Gross Profit</td>${fmtCells(gpVals(), v => v >= 0 ? 'pos' : 'neg-val')}</tr>`;
+      }
+    }
+
+    html += `<tr class="section-hdr"><td colspan="${colSpan}" style="color:${color}">Operating Expenses</td></tr>`;
+    labData.expenses.forEach(it => {
+      html += `<tr class="data-row"><td class="label">${it.label}</td>${fmtCells(itemVals(it))}</tr>`;
+    });
+    html += `<tr class="subtotal"><td>Total Expenses</td>${fmtCells(sumVals(labData.expenses))}</tr>`;
+    html += `<tr class="net-row">
+      <td style="color:${netColor};text-align:left">${hasInc ? 'Net Income' : 'Net (Expense)'}</td>
+      ${fmtCells(netVals(), v => v >= 0 ? 'pos' : 'neg-val')}
+    </tr>`;
+
+    html += '</tbody></table>';
     el.innerHTML = html;
   }
 
-  // ── Load ───────────────────────────────────────────────────────────────────
+  // ── Load data ──────────────────────────────────────────────────────────────
   window.load = async function () {
-    const el  = document.getElementById('content');
-    const btn = document.getElementById('refreshBtn');
-    el.className = 'state-msg';
-    el.textContent = 'Loading…';
-    btn.disabled = true;
-    document.getElementById('monthTabs').innerHTML = '';
+    const tableEl  = document.getElementById('tableWrap');
+    const kpiEl    = document.getElementById('kpiGrid');
+    const tabEl    = document.getElementById('tabNav');
+    const periodEl = document.getElementById('periodToggle');
+    const btn      = document.getElementById('refreshBtn');
+
+    tableEl.innerHTML  = '<div class="state-msg">Loading…</div>';
+    kpiEl.innerHTML    = '';
+    tabEl.innerHTML    = '';
+    periodEl.innerHTML = '';
+    btn.disabled       = true;
 
     try {
-      const res = await fetch(`/api/pl-by-lab?accounting_method=${accountingMethod}`);
+      const res = await fetch(`/api/pl-by-lab?accounting_method=${am}`);
+
       if (res.status === 401) {
-        el.textContent = 'Dashboard login required.';
+        tableEl.innerHTML = '<div class="state-msg">Dashboard login required. <a href="/" style="color:var(--action)">Return home</a></div>';
         return;
       }
       if (res.status === 503) {
-        el.innerHTML = 'QuickBooks not connected. <a href="/auth/qbo-login" style="color:#4ade80">Reconnect</a>.';
+        tableEl.innerHTML = '<div class="state-msg">QuickBooks not connected. <a href="/auth/qbo-login" style="color:var(--action)">Reconnect →</a></div>';
         return;
       }
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        el.className = 'state-msg state-error';
-        el.textContent = j.detail || j.error || 'Error loading data.';
+        tableEl.innerHTML = `<div class="state-msg state-error">${j.detail || j.error || 'Error loading data.'}</div>`;
         return;
       }
+
       data = await res.json();
-      // Default to last (most recent) completed month
-      selectedMonth = Math.max(0, (data.months?.length || 1) - 1);
+
+      if (!data.months || data.months.length === 0) {
+        document.getElementById('subtitle').textContent = 'No completed months yet this year.';
+        tableEl.innerHTML = '<div class="state-msg">No completed months available for the current year.</div>';
+        return;
+      }
+
+      // Preserve active tab across refreshes; default to first lab
+      if (!activeBU || !data.labNames.includes(activeBU)) {
+        activeBU = data.labNames[0];
+      }
+      // Default to most recent completed month
+      period = data.months.length - 1;
+
       renderTabs();
+      renderPeriodToggle();
+      renderKPI();
       renderTable();
+      updateSubtitle();
+
     } catch (e) {
-      el.className = 'state-msg state-error';
-      el.textContent = 'Error loading data: ' + e.message;
+      tableEl.innerHTML = `<div class="state-msg state-error">Error: ${e.message}</div>`;
     } finally {
       btn.disabled = false;
     }

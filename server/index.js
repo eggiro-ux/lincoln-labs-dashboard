@@ -220,6 +220,11 @@ app.use('/api', marketingRouter);
 
 app.get('/api/pl-by-lab', requireDashboardAuth, requireQBO, getPlByLabData);
 
+// ─── Page routes (must be before catch-all) ───────────────────────────────────
+app.get('/pl-by-lab', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/pl-by-lab.html'));
+});
+
 // ─── Catch-all → frontend ─────────────────────────────────────────────────────
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

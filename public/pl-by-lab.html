@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>P&amp;L by Lab — Lincoln Labs</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Fraunces:ital,wght@0,300;1,300&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f0f0e;
+      --surface:  #18181b;
+      --border:   #2a2a27;
+      --text:     #e8e6e0;
+      --muted:    #7a7870;
+      --green:    #4ade80;
+      --red:      #f87171;
+      --font-mono: 'DM Mono', monospace;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font-mono);
+      font-size: 13px;
+      min-height: 100vh;
+      padding: 0 48px 64px;
+    }
+
+    /* ── Controls ─────────────────────────────────────────────────────────── */
+    .controls {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      margin-bottom: 32px;
+      flex-wrap: wrap;
+    }
+
+    .page-title {
+      font-family: 'Fraunces', serif;
+      font-style: italic;
+      font-weight: 300;
+      font-size: 1.4rem;
+      color: var(--text);
+      letter-spacing: -0.01em;
+      margin-right: auto;
+    }
+
+    .toggle-group {
+      display: flex;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .toggle-btn {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+    .toggle-btn:not(:last-child) { border-right: 1px solid var(--border); }
+    .toggle-btn.active {
+      background: var(--border);
+      color: var(--text);
+    }
+    .toggle-btn:hover:not(.active) { color: var(--text); }
+
+    .btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .btn:hover { color: var(--text); border-color: #5a5a57; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Month tabs ───────────────────────────────────────────────────────── */
+    .month-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 28px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .month-tabs::-webkit-scrollbar { display: none; }
+
+    .month-tab {
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.65rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 8px 18px 10px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: color 0.15s;
+      margin-bottom: -1px;
+    }
+    .month-tab:hover { color: var(--text); }
+    .month-tab.active {
+      color: var(--text);
+      border-bottom-color: var(--text);
+    }
+
+    /* ── P&L Table ────────────────────────────────────────────────────────── */
+    .table-wrap {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 640px;
+    }
+
+    thead th {
+      font-size: 0.62rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 400;
+      padding: 0 16px 12px;
+      text-align: right;
+      white-space: nowrap;
+    }
+    thead th:first-child {
+      text-align: left;
+      padding-left: 0;
+      width: 180px;
+    }
+
+    tbody tr {
+      border-top: 1px solid var(--border);
+    }
+    tbody tr:first-child {
+      border-top: none;
+    }
+
+    tbody td {
+      padding: 10px 16px;
+      text-align: right;
+      white-space: nowrap;
+      font-size: 0.78rem;
+    }
+    tbody td:first-child {
+      text-align: left;
+      padding-left: 0;
+      color: var(--muted);
+      font-size: 0.7rem;
+      letter-spacing: 0.04em;
+    }
+
+    tr.row-gross td:first-child,
+    tr.row-net   td:first-child {
+      color: var(--text);
+      font-size: 0.72rem;
+    }
+    tr.row-gross td,
+    tr.row-net   td {
+      font-weight: 500;
+      border-top: 1px solid #3a3a37;
+    }
+    tr.row-divider td {
+      padding-top: 0;
+      padding-bottom: 0;
+      height: 12px;
+      border: none;
+    }
+
+    .val-pos { color: var(--text); }
+    .val-neg { color: var(--red); }
+    .val-zero { color: var(--muted); }
+
+    /* Highlight Net Income green/red */
+    tr.row-net .val-pos { color: var(--green); }
+    tr.row-net .val-neg { color: var(--red); }
+
+    /* ── States ───────────────────────────────────────────────────────────── */
+    .state-msg {
+      color: var(--muted);
+      font-size: 0.75rem;
+      padding: 48px 0;
+      text-align: center;
+    }
+    .state-error { color: var(--red); }
+
+    @media (max-width: 600px) {
+      body { padding: 0 16px 48px; }
+      .page-title { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+<script src="/nav.js"></script>
+
+<div class="controls">
+  <h1 class="page-title">P&amp;L by Lab</h1>
+
+  <div class="toggle-group" id="amToggle">
+    <button class="toggle-btn active" data-val="Accrual" onclick="setAM('Accrual')">Accrual</button>
+    <button class="toggle-btn"        data-val="Cash"    onclick="setAM('Cash')">Cash</button>
+  </div>
+
+  <button class="btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
+</div>
+
+<div id="monthTabs" class="month-tabs"></div>
+
+<div id="content" class="state-msg">Loading…</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  let data         = null;  // full API response
+  let selectedMonth = 0;   // index into data.months
+  let accountingMethod = 'Accrual';
+
+  const LAB_COLORS = {
+    'Apps':         '#a855f7',
+    'AwesomeAPI':   '#22c55e',
+    'Civille':      '#f97316',
+    'Lincoln Labs': '#3b82f6',
+    'Truss':        '#e879f9',
+  };
+
+  // ── Formatting ─────────────────────────────────────────────────────────────
+  function fmt(n) {
+    if (n == null || isNaN(n)) return '—';
+    const abs = Math.abs(n);
+    const s = abs.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    if (n < 0) return `($${s})`;
+    if (n === 0) return '$0';
+    return `$${s}`;
+  }
+
+  function valClass(n) {
+    if (!n || n === 0) return 'val-zero';
+    return n > 0 ? 'val-pos' : 'val-neg';
+  }
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  window.setAM = function (val) {
+    accountingMethod = val;
+    document.querySelectorAll('#amToggle .toggle-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.val === val);
+    });
+    load();
+  };
+
+  // ── Month tabs ─────────────────────────────────────────────────────────────
+  function renderTabs() {
+    const el = document.getElementById('monthTabs');
+    el.innerHTML = '';
+    if (!data || !data.months.length) return;
+    data.months.forEach((m, i) => {
+      const btn = document.createElement('button');
+      btn.className = 'month-tab' + (i === selectedMonth ? ' active' : '');
+      btn.textContent = m;
+      btn.onclick = () => { selectedMonth = i; renderTabs(); renderTable(); };
+      el.appendChild(btn);
+    });
+    // Scroll active tab into view
+    const active = el.querySelector('.active');
+    if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  }
+
+  // ── Table ──────────────────────────────────────────────────────────────────
+  function renderTable() {
+    const el = document.getElementById('content');
+    if (!data || !data.months.length) {
+      el.className = 'state-msg';
+      el.textContent = 'No completed months yet for this year.';
+      return;
+    }
+
+    const labs = data.labNames;
+    const mi   = selectedMonth;
+
+    const rows = [
+      { key: 'income',      label: 'Revenue',          rowClass: 'row-income'   },
+      { key: 'cogs',        label: 'Cost of Revenue',  rowClass: 'row-cogs'     },
+      { key: 'grossProfit', label: 'Gross Profit',     rowClass: 'row-gross'    },
+      { divider: true },
+      { key: 'expenses',    label: 'Operating Expenses', rowClass: 'row-expenses' },
+      { key: 'netIncome',   label: 'Net Income',        rowClass: 'row-net'      },
+    ];
+
+    let html = '<div class="table-wrap"><table>';
+
+    // Header
+    html += '<thead><tr><th></th>';
+    labs.forEach(lab => {
+      const color = LAB_COLORS[lab] || '#e8e6e0';
+      html += `<th style="color:${color}">${lab}</th>`;
+    });
+    html += '</tr></thead>';
+
+    // Body
+    html += '<tbody>';
+    rows.forEach(row => {
+      if (row.divider) {
+        html += `<tr class="row-divider">${'<td></td>'.repeat(labs.length + 1)}</tr>`;
+        return;
+      }
+      html += `<tr class="${row.rowClass}">`;
+      html += `<td>${row.label}</td>`;
+      labs.forEach(lab => {
+        const labData = data.labs[lab];
+        const val = labData ? (labData[row.key]?.[mi] ?? null) : null;
+        html += `<td class="${valClass(val)}">${fmt(val)}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+
+    el.className = '';
+    el.innerHTML = html;
+  }
+
+  // ── Load ───────────────────────────────────────────────────────────────────
+  window.load = async function () {
+    const el  = document.getElementById('content');
+    const btn = document.getElementById('refreshBtn');
+    el.className = 'state-msg';
+    el.textContent = 'Loading…';
+    btn.disabled = true;
+    document.getElementById('monthTabs').innerHTML = '';
+
+    try {
+      const res = await fetch(`/api/pl-by-lab?accounting_method=${accountingMethod}`);
+      if (res.status === 401) {
+        el.textContent = 'Dashboard login required.';
+        return;
+      }
+      if (res.status === 503) {
+        el.innerHTML = 'QuickBooks not connected. <a href="/auth/qbo-login" style="color:#4ade80">Reconnect</a>.';
+        return;
+      }
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        el.className = 'state-msg state-error';
+        el.textContent = j.detail || j.error || 'Error loading data.';
+        return;
+      }
+      data = await res.json();
+      // Default to last (most recent) completed month
+      selectedMonth = Math.max(0, (data.months?.length || 1) - 1);
+      renderTabs();
+      renderTable();
+    } catch (e) {
+      el.className = 'state-msg state-error';
+      el.textContent = 'Error loading data: ' + e.message;
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  load();
+})();
+</script>
+</body>
+</html>

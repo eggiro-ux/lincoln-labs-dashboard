@@ -5,8 +5,9 @@
  */
 (function () {
   const DASHBOARDS = [
-    { label: 'Revenue',   href: '/' },
-    { label: 'Marketing', href: '/dist/marketing/' },
+    { label: 'Revenue',    href: '/' },
+    { label: 'Marketing',  href: '/dist/marketing/' },
+    { label: 'P&L by Lab', href: '/pl-by-lab' },
   ];
 
   const path = window.location.pathname;

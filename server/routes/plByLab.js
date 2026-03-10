@@ -32,7 +32,22 @@ function completedMonthsThisYear() {
   return months;
 }
 
-async function fetchClassPL(accessToken, realmId, className, startDate, endDate, accountingMethod) {
+// Fetch active QBO classes and return a name→ID map.
+async function fetchClassIdMap(accessToken, realmId) {
+  const env  = process.env.QBO_ENVIRONMENT || 'production';
+  const base = QBO_BASE[env];
+  const q    = encodeURIComponent("SELECT Id, Name FROM Class WHERE Active = true MAXRESULTS 200");
+  const url  = `${base}/v3/company/${realmId}/query?query=${q}`;
+  const res  = await axios.get(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  const list = res.data?.QueryResponse?.Class || [];
+  const map  = {};
+  list.forEach(c => { map[c.Name] = c.Id; });
+  return map;
+}
+
+async function fetchClassPL(accessToken, realmId, classId, startDate, endDate, accountingMethod) {
   const env    = process.env.QBO_ENVIRONMENT || 'production';
   const base   = QBO_BASE[env];
   const params = new URLSearchParams({
@@ -40,7 +55,7 @@ async function fetchClassPL(accessToken, realmId, className, startDate, endDate,
     end_date:            endDate,
     accounting_method:   accountingMethod,
     summarize_column_by: 'Month',
-    class:               className,
+    class:               classId,   // QBO requires the class ID, not the name
   });
   const url = `${base}/v3/company/${realmId}/reports/ProfitAndLoss?${params}`;
   const res = await axios.get(url, {
@@ -138,17 +153,34 @@ async function getPlByLabData(req, res) {
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 
+    // QBO Reports API requires class IDs, not names — fetch the mapping first.
+    const classIdMap = await fetchClassIdMap(accessToken, realmId);
+
+    // Only fetch labs that have a matching QBO class; log any misses.
+    const labsToFetch = LAB_CLASSES.filter(lab => {
+      if (!classIdMap[lab]) {
+        console.warn(`[plByLab] No QBO class found for "${lab}" — available:`, Object.keys(classIdMap).join(', '));
+      }
+      return !!classIdMap[lab];
+    });
+
     const results = await Promise.all(
-      LAB_CLASSES.map(lab => fetchClassPL(accessToken, realmId, lab, startDate, endDate, am))
+      labsToFetch.map(lab => fetchClassPL(accessToken, realmId, classIdMap[lab], startDate, endDate, am))
     );
 
     const labs = {};
-    LAB_CLASSES.forEach((lab, i) => { labs[lab] = parsePL(results[i]); });
+    labsToFetch.forEach((lab, i) => { labs[lab] = parsePL(results[i]); });
 
+    // Include all lab names in order (even ones without data) so the UI tabs are stable.
     res.json({ months: months.map(m => m.label), labs, labNames: LAB_CLASSES });
   } catch (err) {
-    console.error('/api/pl-by-lab error:', err.response?.data || err.message);
-    res.status(500).json({ error: 'Failed to fetch P&L by lab data', detail: err.message });
+    const qboError = err.response?.data;
+    console.error('/api/pl-by-lab error:', qboError || err.message);
+    res.status(500).json({
+      error:  'Failed to fetch P&L by lab data',
+      detail: err.message,
+      qbo:    qboError || null,
+    });
   }
 }
 

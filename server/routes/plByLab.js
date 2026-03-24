@@ -13,7 +13,7 @@
 const axios      = require('axios');
 const tokenStore = require('../tokenStore');
 
-const LAB_CLASSES = ['Apps', 'AwesomeAPI', 'Civille', 'Lincoln Labs', 'Truss'];
+const LAB_CLASSES = ['Apps', 'AwesomeAPI', 'Civille', 'Lincoln Labs', 'Truss', 'Accomplice'];
 const MONTH_ABBR  = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 const QBO_BASE = {
@@ -23,19 +23,33 @@ const QBO_BASE = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function completedMonthsThisYear() {
+function getReportMonths() {
   const today     = new Date();
   const year      = today.getFullYear();
-  const thisMonth = today.getMonth() + 1; // current month is incomplete
+  const thisMonth = today.getMonth() + 1; // 1-indexed
   const months    = [];
+
+  // Completed months (1 through thisMonth-1)
   for (let m = 1; m < thisMonth; m++) {
     const lastDay = new Date(year, m, 0).getDate();
     months.push({
-      label: `${MONTH_ABBR[m - 1]} ${year}`,
-      start: `${year}-${String(m).padStart(2, '0')}-01`,
-      end:   `${year}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+      label:   `${MONTH_ABBR[m - 1]} ${year}`,
+      start:   `${year}-${String(m).padStart(2, '0')}-01`,
+      end:     `${year}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+      partial: false,
     });
   }
+
+  // Current month as MTD (always include — "current as of today")
+  const todayDay = today.getDate();
+  const todayStr = `${year}-${String(thisMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
+  months.push({
+    label:   `${MONTH_ABBR[thisMonth - 1]} ${year}`,
+    start:   `${year}-${String(thisMonth).padStart(2, '0')}-01`,
+    end:     todayStr,
+    partial: true,
+  });
+
   return months;
 }
 
@@ -62,12 +76,13 @@ async function fetchTotalPL(accessToken, realmId, startDate, endDate, accounting
 function matchLab(text) {
   if (!text) return null;
   const t = text.toLowerCase();
-  if (/awesome/.test(t))   return 'AwesomeAPI'; // before generic checks
-  if (/civille/.test(t))   return 'Civille';
-  if (/phantom/.test(t))   return 'Civille';    // Phantom Copy is a Civille sub-brand
-  if (/lincoln/.test(t))   return 'Lincoln Labs';
-  if (/\btruss\b/.test(t)) return 'Truss';
-  if (/\bapps?\b/.test(t)) return 'Apps';       // word-boundary so "AwesomeApp" doesn't match
+  if (/awesome/.test(t))     return 'AwesomeAPI'; // before generic checks
+  if (/civille/.test(t))     return 'Civille';
+  if (/phantom/.test(t))     return 'Civille';    // Phantom Copy is a Civille sub-brand
+  if (/lincoln/.test(t))     return 'Lincoln Labs';
+  if (/\btruss\b/.test(t))   return 'Truss';
+  if (/accomplice/.test(t))  return 'Accomplice';
+  if (/\bapps?\b/.test(t))   return 'Apps';       // word-boundary so "AwesomeApp" doesn't match
   return null;
 }
 
@@ -172,18 +187,23 @@ async function getPlByLabData(req, res) {
     const realmId     = tokenStore.getRealmId();
     const am          = req.query.accounting_method === 'Cash' ? 'Cash' : 'Accrual';
 
-    const months = completedMonthsThisYear();
-    if (months.length === 0) {
-      return res.json({ months: [], labs: {}, labNames: LAB_CLASSES });
-    }
-
+    const months = getReportMonths();
+    // months always includes at least the current MTD month
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 
     const pl   = await fetchTotalPL(accessToken, realmId, startDate, endDate, am);
     const labs = extractLabData(pl);
 
-    res.json({ months: months.map(m => m.label), labs, labNames: LAB_CLASSES });
+    // Tell the frontend which month indices are partial (MTD)
+    const partialMonths = months.reduce((acc, m, i) => { if (m.partial) acc.push(i); return acc; }, []);
+
+    res.json({
+      months:       months.map(m => m.label),
+      partialMonths,
+      labs,
+      labNames: LAB_CLASSES,
+    });
   } catch (err) {
     const qboErr = err.response?.data;
     console.error('/api/pl-by-lab error:', qboErr || err.message);

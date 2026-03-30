@@ -197,7 +197,11 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
   const curStart  = new Date(today.getFullYear(), today.getMonth(), 1);
   const curEnd    = today;
   const priorStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
-  const priorEnd   = new Date(today.getFullYear(), today.getMonth() - 1, dayOfMonth);
+  // Clamp priorEnd to the last day of the prior month if the current day-of-month
+  // exceeds the prior month's length (e.g. comparing Mar 30 to Feb — cap at Feb 28/29).
+  const daysInPriorMonth = new Date(today.getFullYear(), today.getMonth(), 0).getDate();
+  const priorEndDay = Math.min(dayOfMonth, daysInPriorMonth);
+  const priorEnd   = new Date(today.getFullYear(), today.getMonth() - 1, priorEndDay);
 
   const fmt = d => d.toISOString().split('T')[0];
 

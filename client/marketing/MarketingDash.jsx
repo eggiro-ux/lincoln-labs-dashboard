@@ -45,6 +45,15 @@ function buildChartData(view, leadSeries) {
   const g26 = view==="mql"?mql2025.map(v=>Math.round(v*1.35)):view==="sql"?sql2025.map(v=>Math.round(v*1.35)):goal2026;
   return months.map((month,i)=>({ month, "2025 Actuals":a25[i]??0, "2026 Actuals":a26[i], "2026 Goal":g26[i] }));
 }
+function computeBestFit(data, key) {
+  if (!key) return data;
+  const pts = data.map((d,i)=>d[key]!=null?{x:i,y:d[key]}:null).filter(Boolean);
+  if (pts.length < 2) return data;
+  const n=pts.length, sx=pts.reduce((s,p)=>s+p.x,0), sy=pts.reduce((s,p)=>s+p.y,0);
+  const sxy=pts.reduce((s,p)=>s+p.x*p.y,0), sx2=pts.reduce((s,p)=>s+p.x*p.x,0);
+  const m=(n*sxy-sx*sy)/(n*sx2-sx*sx), b=(sy-m*sx)/n;
+  return data.map((d,i)=>({...d,"Best Fit":Math.max(0,Math.round(m*i+b))}));
+}
 // Win rate → background tint (dark → brighter as rate rises, grayscale)
 function wrBg(wr) {
   if (wr == null) return "transparent";
@@ -672,6 +681,7 @@ export default function Dashboard() {
 
   const [tab,         setTab]         = useState("trend");
   const [view,        setView]        = useState("combined");
+  const [bestFitKey,  setBestFitKey]  = useState(null);
   const [srcPeriod,   setSrcPeriod]   = useState("y2026");
   const [ltvSort,     setLtvSort]     = useState("score");
   const [refreshing,  setRefreshing]  = useState(false);
@@ -708,7 +718,7 @@ export default function Dashboard() {
   const cp         = data?.currentPeriod ?? EMPTY_CP;
   const insights   = data?.insights   ?? [];
 
-  const chartData = buildChartData(view, leadSeries);
+  const chartData = computeBestFit(buildChartData(view, leadSeries), bestFitKey);
 
   const sources=sourceData[srcPeriod]??[];
   const maxVal=Math.max(...sources.map(s=>Math.max(s.mqls,s.sqls,s.deals)),1);
@@ -790,6 +800,15 @@ export default function Dashboard() {
               <span style={{display:"inline-block",width:16,borderTop:"2px dashed #f97316",opacity:.85}}/>2026 Goal
             </div>
           </div>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span style={{...MONO,fontSize:"0.62rem",color:C.muted,letterSpacing:"0.06em",textTransform:"uppercase"}}>Trend line</span>
+            <SegToggle
+              options={[["none","None"],["2025 Actuals","2025"],["2026 Actuals","2026"],["2026 Goal","Goal"]]}
+              value={bestFitKey||"none"}
+              onChange={v=>setBestFitKey(v==="none"?null:v)}
+              small
+            />
+          </div>
           <SegToggle options={[["combined","MQL + SQL"],["mql","MQL"],["sql","SQL"]]} value={view} onChange={setView} small/>
         </div>
         <div style={{background:C.surface,border:`1px solid ${C.border}`,padding:isMobile?"16px 12px 12px":"28px 28px 16px",marginBottom:6}}>
@@ -805,6 +824,7 @@ export default function Dashboard() {
               <Bar dataKey="2025 Actuals" fill={C.paid} fillOpacity={0.25} barSize={isMobile?6:10}/>
               <Bar dataKey="2026 Actuals" fill={C.organic} barSize={isMobile?6:10}/>
               <Line type="monotone" dataKey="2026 Goal" stroke="#f97316" strokeWidth={1.5} dot={false} strokeDasharray="5 3"/>
+              {bestFitKey&&<Line type="linear" dataKey="Best Fit" stroke={{"2025 Actuals":C.paid,"2026 Actuals":C.organic,"2026 Goal":"#f97316"}[bestFitKey]} strokeWidth={1} dot={false} strokeDasharray="3 3" strokeOpacity={0.7} connectNulls/>}
             </ComposedChart>
           </ResponsiveContainer>
         </div>

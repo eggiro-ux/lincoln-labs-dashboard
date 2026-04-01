@@ -214,7 +214,22 @@
   <div id="tab-trend" class="tab-content active">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <div class="legend" id="legend" style="margin-bottom:0;flex:1;"></div>
-      <button id="currentMonthToggle" class="btn" onclick="toggleCurrentMonth()" style="font-size:0.68rem;padding:7px 14px;white-space:nowrap;flex-shrink:0;margin-left:16px;">Show Current Month</button>
+      <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;margin-left:16px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:#7a7870;letter-spacing:0.06em;text-transform:uppercase;">Trend line</span>
+          <select id="bestFitSelect" onchange="setBestFitSeries(this.value)" style="font-family:'DM Mono',monospace;font-size:0.65rem;background:#191917;color:#7a7870;border:1px solid #2a2a27;padding:5px 8px;cursor:pointer;letter-spacing:0.04em;">
+            <option value="">None</option>
+            <option value="civille">Civille + Phantom</option>
+            <option value="awesomeapi">AwesomeAPI</option>
+            <option value="brash_apps">Brash Apps</option>
+            <option value="truss_total_margin">Total Truss Margin</option>
+            <option value="truss_sal_delta">Truss Salaries</option>
+            <option value="truss_svc_rec">Truss Svc Fees</option>
+            <option value="lincoln_labs">Lincoln Labs Total</option>
+          </select>
+        </div>
+        <button id="currentMonthToggle" class="btn" onclick="toggleCurrentMonth()" style="font-size:0.68rem;padding:7px 14px;white-space:nowrap;">Show Current Month</button>
+      </div>
     </div>
     <div class="chart-wrapper">
       <canvas id="trendChart"></canvas>
@@ -298,6 +313,12 @@ let hidden = new Set(['truss_sal_delta', 'truss_svc_rec', 'brash_apps']);
 let compHidden = new Set(); // independent visibility for the comparison chart
 let hoveredMonth = null;
 let trendData = null;
+let bestFitSeries = '';
+
+function setBestFitSeries(key) {
+  bestFitSeries = key;
+  drawTrendChart();
+}
 let periodData = null;
 let showCurrentMonth = false; // default: hide the current incomplete month
 let accountingMethod = 'Accrual';
@@ -684,6 +705,33 @@ function drawTrendChart() {
     trendCtx.strokeStyle = '#3a3a37'; trendCtx.lineWidth = 1; trendCtx.setLineDash([3, 3]);
     trendCtx.beginPath(); trendCtx.moveTo(x, MARGIN.top); trendCtx.lineTo(x, MARGIN.top + plotH); trendCtx.stroke();
     trendCtx.setLineDash([]);
+  }
+
+  // ── Best-fit trend line ────────────────────────────────────────────────────
+  if (bestFitSeries) {
+    const s = SERIES_CONFIG.find(s => s.key === bestFitSeries);
+    const vals = series[bestFitSeries] || [];
+    const pts = vals.map((v, i) => v !== null ? { x: i, y: v } : null).filter(Boolean);
+    if (s && pts.length >= 2) {
+      const ns = pts.length;
+      const sx = pts.reduce((a, p) => a + p.x, 0), sy = pts.reduce((a, p) => a + p.y, 0);
+      const sxy = pts.reduce((a, p) => a + p.x * p.y, 0), sx2 = pts.reduce((a, p) => a + p.x * p.x, 0);
+      const m = (ns * sxy - sx * sy) / (ns * sx2 - sx * sx);
+      const b = (sy - m * sx) / ns;
+      const x0 = MARGIN.left + (pts[0].x / (n - 1)) * plotW;
+      const x1 = MARGIN.left + (pts[pts.length - 1].x / (n - 1)) * plotW;
+      const toY = v => MARGIN.top + plotH - ((Math.max(yMin, v) - yMin) / yRange) * plotH;
+      const y0 = toY(m * pts[0].x + b);
+      const y1 = toY(m * pts[pts.length - 1].x + b);
+      trendCtx.save();
+      trendCtx.globalAlpha = 0.65;
+      trendCtx.strokeStyle = s.color;
+      trendCtx.lineWidth = 1.5;
+      trendCtx.setLineDash([4, 4]);
+      trendCtx.beginPath(); trendCtx.moveTo(x0, y0); trendCtx.lineTo(x1, y1);
+      trendCtx.stroke();
+      trendCtx.restore();
+    }
   }
 }
 

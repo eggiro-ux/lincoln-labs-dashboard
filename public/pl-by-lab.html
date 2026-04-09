@@ -215,6 +215,31 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
   border: 1px solid var(--border); background: var(--surface);
 }
 
+/* ── Date range picker ───────────────────────────────────────────────────── */
+.date-range {
+  display: flex; align-items: center; gap: 0; flex-shrink: 0;
+}
+.date-range label {
+  font-size: 0.58rem; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); padding: 0 8px; white-space: nowrap;
+  pointer-events: none;
+}
+.date-input {
+  background: var(--surface); border: 1px solid var(--border); color: var(--text);
+  font-family: 'DM Mono', monospace; font-size: 0.72rem;
+  padding: 6px 10px; height: 36px; outline: none;
+  color-scheme: dark;
+}
+.shell.light .date-input { color-scheme: light; }
+.date-input:focus { border-color: var(--muted); }
+.date-input + .date-input { border-left: none; }
+.date-sep {
+  background: var(--surface); border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border); border-left: none; border-right: none;
+  color: var(--muted); font-size: 0.65rem; padding: 6px 2px; height: 36px;
+  display: flex; align-items: center;
+}
+
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
   .kpi-grid-7 { grid-template-columns: repeat(4, 1fr); }
@@ -242,6 +267,11 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     </div>
     <div class="header-right">
       <div class="header-kpis" id="headerKpis"></div>
+      <div class="date-range">
+        <input type="date" id="dateStart" class="date-input" onchange="onDateChange()">
+        <span class="date-sep">–</span>
+        <input type="date" id="dateEnd" class="date-input" onchange="onDateChange()">
+      </div>
       <div class="seg-toggle" id="amToggle">
         <button class="seg-btn active" data-val="Accrual" onclick="setAM('Accrual')">Accrual</button>
         <button class="seg-btn"        data-val="Cash"    onclick="setAM('Cash')">Cash</button>
@@ -277,11 +307,36 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
   const TABS = ['Overview', 'Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Phantom Copy', 'Lincoln Labs Co.', 'Unassigned'];
 
+  // ── Default date range helpers ────────────────────────────────────────────
+  function defaultDateRange() {
+    const today = new Date();
+    const year  = today.getFullYear();
+    const month = today.getMonth() + 1; // 1-indexed
+
+    const startStr = `${year}-01-01`;
+
+    let endStr;
+    if (month > 1) {
+      const lastCompleted = month - 1;
+      const lastDay = new Date(year, lastCompleted, 0).getDate();
+      endStr = `${year}-${String(lastCompleted).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+    } else {
+      // January: use today as end
+      const d = today.getDate();
+      endStr = `${year}-01-${String(d).padStart(2,'0')}`;
+    }
+    return { startStr, endStr };
+  }
+
   // ── State ─────────────────────────────────────────────────────────────────
   let data      = null;
   let activeTab = 'Overview';
   let am        = 'Accrual';
   let isDark    = true;
+
+  const { startStr: _ds, endStr: _de } = defaultDateRange();
+  let dateStart = _ds;
+  let dateEnd   = _de;
 
   // ── Formatting ────────────────────────────────────────────────────────────
   function fmtDollar(n) {
@@ -322,6 +377,16 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     isDark = !isDark;
     document.getElementById('shell').className = isDark ? 'shell dark' : 'shell light';
     document.getElementById('themeBtn').textContent = isDark ? '☀' : '☾';
+  };
+
+  // ── Date range change ──────────────────────────────────────────────────────
+  window.onDateChange = function () {
+    const s = document.getElementById('dateStart').value;
+    const e = document.getElementById('dateEnd').value;
+    if (!s || !e || s > e) return; // wait until both are valid
+    dateStart = s;
+    dateEnd   = e;
+    load();
   };
 
   // ── Accounting method ──────────────────────────────────────────────────────
@@ -755,13 +820,19 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const contentEl = document.getElementById('tabContent');
     const btn       = document.getElementById('refreshBtn');
 
+    // Sync date inputs to current state
+    const dsEl = document.getElementById('dateStart');
+    const deEl = document.getElementById('dateEnd');
+    if (dsEl.value !== dateStart) dsEl.value = dateStart;
+    if (deEl.value !== dateEnd)   deEl.value = dateEnd;
+
     contentEl.innerHTML = '<div class="state-msg">Loading…</div>';
     document.getElementById('tabNav').innerHTML = '';
     document.getElementById('headerKpis').innerHTML = '';
     btn.disabled = true;
 
     try {
-      const res = await fetch(`/api/pl-by-lab?accounting_method=${am}`);
+      const res = await fetch(`/api/pl-by-lab?accounting_method=${am}&start_date=${dateStart}&end_date=${dateEnd}`);
 
       if (res.status === 401) {
         contentEl.innerHTML = `<div class="state-msg">Dashboard login required. <a href="/" class="state-link">Return home</a></div>`;

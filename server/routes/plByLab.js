@@ -21,32 +21,88 @@ const QBO_BASE = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function getReportMonths() {
-  const today     = new Date();
-  const year      = today.getFullYear();
-  const thisMonth = today.getMonth() + 1; // 1-indexed
-  const months    = [];
+function getReportMonths(startDateStr, endDateStr) {
+  const today = new Date();
 
-  // Completed months (1 through thisMonth-1)
-  for (let m = 1; m < thisMonth; m++) {
-    const lastDay = new Date(year, m, 0).getDate();
-    months.push({
-      label:   `${MONTH_ABBR[m - 1]} ${year}`,
-      start:   `${year}-${String(m).padStart(2, '0')}-01`,
-      end:     `${year}-${String(m).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
-      partial: false,
-    });
+  // Default: Jan 1 of current year → last day of last completed month
+  if (!startDateStr || !endDateStr) {
+    const year      = today.getFullYear();
+    const thisMonth = today.getMonth() + 1; // 1-indexed
+
+    // Default start: Jan 1 of current year
+    startDateStr = `${year}-01-01`;
+
+    // Default end: last day of last completed month
+    // If we are in January, fall back to last day of January current year (MTD)
+    if (thisMonth > 1) {
+      const lastCompletedMonth = thisMonth - 1;
+      const lastDay = new Date(year, lastCompletedMonth, 0).getDate();
+      endDateStr = `${year}-${String(lastCompletedMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    } else {
+      // January: show Jan MTD
+      const todayDay = today.getDate();
+      endDateStr = `${year}-01-${String(todayDay).padStart(2, '0')}`;
+    }
   }
 
-  // Current month as MTD (always include)
-  const todayDay = today.getDate();
-  const todayStr = `${year}-${String(thisMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`;
-  months.push({
-    label:   `${MONTH_ABBR[thisMonth - 1]} ${year}`,
-    start:   `${year}-${String(thisMonth).padStart(2, '0')}-01`,
-    end:     todayStr,
-    partial: true,
-  });
+  // Parse start and end dates
+  const [sy, sm, sd] = startDateStr.split('-').map(Number);
+  const [ey, em, ed] = endDateStr.split('-').map(Number);
+
+  const todayYear  = today.getFullYear();
+  const todayMonth = today.getMonth() + 1;
+  const todayDay   = today.getDate();
+
+  const months = [];
+
+  // Iterate month by month from start to end
+  let curYear = sy, curMonth = sm;
+  while (curYear < ey || (curYear === ey && curMonth <= em)) {
+    const lastDayOfMonth = new Date(curYear, curMonth, 0).getDate();
+
+    const isCurrentMonth = (curYear === todayYear && curMonth === todayMonth);
+    const isLastMonth    = (curYear === ey && curMonth === em);
+
+    let monthEnd;
+    let partial = false;
+
+    if (isCurrentMonth) {
+      // Cap at today
+      const cappedDay = Math.min(todayDay, lastDayOfMonth);
+      // Also cap at the requested end date if it's this month
+      if (isLastMonth) {
+        const requestedDay = Math.min(ed, todayDay);
+        monthEnd = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(requestedDay).padStart(2, '0')}`;
+      } else {
+        monthEnd = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(cappedDay).padStart(2, '0')}`;
+      }
+      partial = true;
+    } else if (isLastMonth) {
+      // Last month in range: use the requested end day
+      const usedDay = Math.min(ed, lastDayOfMonth);
+      monthEnd = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(usedDay).padStart(2, '0')}`;
+      // Partial if end day is not month-end
+      partial = (usedDay < lastDayOfMonth);
+    } else {
+      monthEnd = `${curYear}-${String(curMonth).padStart(2, '0')}-${String(lastDayOfMonth).padStart(2, '0')}`;
+    }
+
+    // Determine start day for first month
+    const monthStart = (curYear === sy && curMonth === sm)
+      ? `${curYear}-${String(curMonth).padStart(2, '0')}-${String(sd).padStart(2, '0')}`
+      : `${curYear}-${String(curMonth).padStart(2, '0')}-01`;
+
+    months.push({
+      label:   `${MONTH_ABBR[curMonth - 1]} ${curYear}`,
+      start:   monthStart,
+      end:     monthEnd,
+      partial,
+    });
+
+    // Advance
+    curMonth++;
+    if (curMonth > 12) { curMonth = 1; curYear++; }
+  }
 
   return months;
 }
@@ -583,7 +639,11 @@ async function getPlByLabData(req, res) {
     const realmId     = tokenStore.getRealmId();
     const am          = req.query.accounting_method === 'Cash' ? 'Cash' : 'Accrual';
 
-    const months    = getReportMonths();
+    // Accept optional start_date / end_date query params (YYYY-MM-DD)
+    const reqStart = req.query.start_date || null;
+    const reqEnd   = req.query.end_date   || null;
+
+    const months    = getReportMonths(reqStart, reqEnd);
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 

@@ -241,6 +241,39 @@ function parsePL(pl) {
   // Walk a section's rows and emit flat items into the target arrays.
   // parentSectionName: the display name of the immediate parent section (for label construction)
   // topSectionType: 'income' | 'cogs' | 'expenses'
+  // Route a data row (label + values) into the correct lab bucket.
+  function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals) {
+    const lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
+    if (topSectionType === 'income') {
+      if (lab) {
+        labIncome[lab] = labIncome[lab] || [];
+        labIncome[lab].push({ label: displayLabel, values: vals });
+        if (buRevByMonth[lab]) {
+          for (let i = 0; i < N; i++) buRevByMonth[lab][i] += vals[i];
+        }
+      } else {
+        unassignedIncome.push({ label: displayLabel, values: vals });
+      }
+      for (let i = 0; i < N; i++) sumIncome[i] += vals[i];
+    } else if (topSectionType === 'cogs') {
+      if (lab) {
+        labCOGS[lab] = labCOGS[lab] || [];
+        labCOGS[lab].push({ label: displayLabel, values: vals });
+      } else {
+        unassignedExpenses.push({ label: displayLabel, values: vals });
+      }
+      for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
+    } else {
+      // expenses — do NOT accumulate sumExpenses here (top-level totals used)
+      if (lab) {
+        labExpenses[lab] = labExpenses[lab] || [];
+        labExpenses[lab].push({ label: displayLabel, values: vals });
+      } else {
+        unassignedExpenses.push({ label: displayLabel, values: vals });
+      }
+    }
+  }
+
   function walkSection(rows, topSectionType, parentSectionName, depth) {
     for (const row of (rows || [])) {
       if (row.type === 'Section') {
@@ -248,9 +281,18 @@ function parsePL(pl) {
         const summary = row.Summary?.ColData?.[0]?.value || '';
         const sName   = header || summary;
 
-        // Emit section header into fullPLRows
+        // QBO puts a parent account's own postings in Section Header.ColData when
+        // it has sub-accounts. Detect this and emit as a data row; otherwise emit
+        // as a label-only section header.
         if (header) {
-          fullPLRows.push({ label: header, type: 'section_header' });
+          const headerVals = row.Header.ColData.length > 1 ? getVals(row.Header.ColData) : null;
+          if (headerVals && headerVals.some(v => v !== 0)) {
+            // Parent account has its own postings (e.g. "Civille" with $176K direct revenue)
+            fullPLRows.push({ label: header, values: headerVals, type: 'row' });
+            routeDataRow(topSectionType, header, parentSectionName, header, headerVals);
+          } else {
+            fullPLRows.push({ label: header, type: 'section_header' });
+          }
         }
 
         // Recurse into children
@@ -260,69 +302,27 @@ function parsePL(pl) {
 
         // Emit section summary (subtotal) row
         if (row.Summary?.ColData) {
-          const vals    = getVals(row.Summary.ColData);
-          const subLbl  = subtotalLabel(sName);
-          // Determine row type
-          let rowType = 'subtotal';
+          const vals   = getVals(row.Summary.ColData);
+          const subLbl = subtotalLabel(sName);
+          let rowType  = 'subtotal';
           const sl = sName.toLowerCase();
-          if (sl.includes('income') && depth === 0)        rowType = 'total_income';
+          if (sl.includes('income') && depth === 0)          rowType = 'total_income';
           if (sl.includes('cost of goods') || sl === 'cogs') rowType = 'total_cogs';
-          if (sl.includes('expense') && depth === 0)       rowType = 'total_expenses';
-          if (sl === 'gross profit')                        rowType = 'gross_profit';
-
+          if (sl.includes('expense') && depth === 0)         rowType = 'total_expenses';
+          if (sl === 'gross profit')                          rowType = 'gross_profit';
           fullPLRows.push({ label: subLbl, values: vals, type: rowType });
         }
       }
 
       if (row.type === 'Data' && row.ColData) {
-        const rowLabel = row.ColData[0]?.value || '';
-        const vals     = getVals(row.ColData);
-
-        // Build display label
+        const rowLabel     = row.ColData[0]?.value || '';
+        const vals         = getVals(row.ColData);
         const displayLabel = buildLabel(parentSectionName, rowLabel);
 
-        // Classify by lab
-        // For income section: match on rowLabel first, then parentSectionName
-        // For non-income: match on displayLabel components
-        let lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
-
-        // Emit to fullPLRows
         fullPLRows.push({ label: displayLabel, values: vals, type: 'row' });
 
-        // Route to lab buckets
         if (vals.some(v => v !== 0)) {
-          if (topSectionType === 'income') {
-            if (lab) {
-              labIncome[lab]   = labIncome[lab]   || [];
-              labIncome[lab].push({ label: displayLabel, values: vals });
-              // Accumulate BU revenue
-              if (buRevByMonth[lab]) {
-                for (let i = 0; i < N; i++) buRevByMonth[lab][i] += vals[i];
-              }
-            } else {
-              unassignedIncome.push({ label: displayLabel, values: vals });
-            }
-            for (let i = 0; i < N; i++) sumIncome[i] += vals[i];
-          } else if (topSectionType === 'cogs') {
-            if (lab) {
-              labCOGS[lab] = labCOGS[lab] || [];
-              labCOGS[lab].push({ label: displayLabel, values: vals });
-            } else {
-              // unassigned COGS treated as unassigned expenses for simplicity
-              unassignedExpenses.push({ label: displayLabel, values: vals });
-            }
-            for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
-          } else {
-            // expenses — do NOT accumulate sumExpenses here; top-level section
-            // totals are used instead (avoids double-counting with section summaries)
-            const expLab = lab;
-            if (expLab) {
-              labExpenses[expLab] = labExpenses[expLab] || [];
-              labExpenses[expLab].push({ label: displayLabel, values: vals });
-            } else {
-              unassignedExpenses.push({ label: displayLabel, values: vals });
-            }
-          }
+          routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals);
         }
       }
     }

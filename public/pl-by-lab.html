@@ -7,6 +7,9 @@
 <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,300;0,600;1,300&display=swap" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
+/* Nav sits outside .shell — give it the same 48px inset as the Revenue page body */
+#ll-nav { padding-left: 48px !important; padding-right: 48px !important; }
+@media (max-width: 768px) { #ll-nav { padding-left: 16px !important; padding-right: 16px !important; } }
 button { outline: none; cursor: pointer; }
 a { color: inherit; }
 body { font-family: 'DM Mono', monospace; font-size: 0.82rem; background: #0f0f0e; color: #e8e6e0; }

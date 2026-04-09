@@ -124,12 +124,12 @@ async function fetchTotalPL(accessToken, realmId, startDate, endDate, accounting
 }
 
 // ── Lab matching ──────────────────────────────────────────────────────────────
-// Phantom Copy is its OWN lab (not under Civille).
+// Phantom Copy is a sub-account of Civille — rolls up into Civille.
 function matchLab(text) {
   if (!text) return null;
   const t = text.toLowerCase();
   if (/awesome/.test(t))    return 'AwesomeAPI';
-  if (/phantom/.test(t))    return 'Phantom Copy';
+  if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
   if (/lincoln/.test(t))    return 'Lincoln Labs';
   if (/\btruss\b/.test(t))  return 'Truss';
@@ -210,7 +210,7 @@ function parsePL(pl) {
   const fullPLRows = [];
 
   // Per-lab row accumulators
-  const LAB_NAMES = ['Civille', 'Phantom Copy', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs'];
+  const LAB_NAMES = ['Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs'];
   const labIncome   = {};
   const labCOGS     = {};
   const labExpenses = {};
@@ -313,7 +313,8 @@ function parsePL(pl) {
             }
             for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
           } else {
-            // expenses
+            // expenses — do NOT accumulate sumExpenses here; top-level section
+            // totals are used instead (avoids double-counting with section summaries)
             const expLab = lab;
             if (expLab) {
               labExpenses[expLab] = labExpenses[expLab] || [];
@@ -321,7 +322,6 @@ function parsePL(pl) {
             } else {
               unassignedExpenses.push({ label: displayLabel, values: vals });
             }
-            for (let i = 0; i < N; i++) sumExpenses[i] += vals[i];
           }
         }
       }
@@ -439,8 +439,8 @@ function parsePL(pl) {
     return { name, monthRevenue, totalRevenue, totalCOGS, grossProfit, gmPct, ...opts };
   }
 
+  // Phantom Copy is now folded into Civille, so labIncome['Civille'] already includes it
   const civilleRev        = sumRows(labIncome['Civille'] || []);
-  const phantomRev        = sumRows(labIncome['Phantom Copy'] || []);
   const trussServiceRev   = sumRows(trussServiceFees);
   const trussPassThruRev  = sumRows(trussPassThrough);
   const awesomeRev        = sumRows(labIncome['AwesomeAPI'] || []);
@@ -450,7 +450,6 @@ function parsePL(pl) {
 
   const buRows = [
     makeRevRow('Civille', civilleRev, labCOGS['Civille'] || []),
-    makeRevRow('Phantom Copy', phantomRev, labCOGS['Phantom Copy'] || []),
     makeRevRow('Truss (service fees only)', trussServiceRev, [], { trussSubType: 'service_fees' }),
     makeRevRow('Truss (client salaries pass-through)', trussPassThruRev, [], { trussSubType: 'passthrough' }),
     makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || []),
@@ -465,12 +464,12 @@ function parsePL(pl) {
   const trussPassTotal    = trussPassThruRev.reduce((a,b)=>a+b,0);
   const trussTotal        = trussServiceTotal + trussPassTotal;
   if (trussTotal > 0) {
-    buRows[2].totalCOGS   = Math.round(trussTotalCOGS * trussServiceTotal / trussTotal);
-    buRows[3].totalCOGS   = Math.round(trussTotalCOGS * trussPassTotal    / trussTotal);
+    buRows[1].totalCOGS   = Math.round(trussTotalCOGS * trussServiceTotal / trussTotal);
+    buRows[2].totalCOGS   = Math.round(trussTotalCOGS * trussPassTotal    / trussTotal);
+    buRows[1].grossProfit = buRows[1].totalRevenue - buRows[1].totalCOGS;
     buRows[2].grossProfit = buRows[2].totalRevenue - buRows[2].totalCOGS;
-    buRows[3].grossProfit = buRows[3].totalRevenue - buRows[3].totalCOGS;
+    buRows[1].gmPct       = buRows[1].totalRevenue ? parseFloat((buRows[1].grossProfit / buRows[1].totalRevenue * 100).toFixed(1)) : null;
     buRows[2].gmPct       = buRows[2].totalRevenue ? parseFloat((buRows[2].grossProfit / buRows[2].totalRevenue * 100).toFixed(1)) : null;
-    buRows[3].gmPct       = buRows[3].totalRevenue ? parseFloat((buRows[3].grossProfit / buRows[3].totalRevenue * 100).toFixed(1)) : null;
   }
 
   // ── Per-lab P&L rows ───────────────────────────────────────────────────────
@@ -580,28 +579,13 @@ function parsePL(pl) {
     return rows;
   }
 
-  // Civille tab: includes Phantom Copy
-  const civilleWithPhantom = {
-    subtitle: 'Including Phantom Copy',
-    kpis: labKPIs('Civille', {
-      extraIncome:    labIncome['Phantom Copy']   || [],
-      extraCOGS:      labCOGS['Phantom Copy']     || [],
-      extraExpenses:  labExpenses['Phantom Copy'] || [],
-    }),
-    rows: buildLabRows('Civille', {
-      extraIncome:    labIncome['Phantom Copy']   || [],
-      extraCOGS:      labCOGS['Phantom Copy']     || [],
-      extraExpenses:  labExpenses['Phantom Copy'] || [],
-    }),
-  };
-
+  // Civille already includes Phantom Copy (matchLab routes phantom → Civille)
   const labs = {
-    'Civille':      civilleWithPhantom,
-    'Truss':        { subtitle: null, kpis: trussKPIs(), rows: trussRows() },
-    'AwesomeAPI':   { subtitle: null, kpis: labKPIs('AwesomeAPI'),   rows: buildLabRows('AwesomeAPI')   },
-    'Apps':         { subtitle: null, kpis: labKPIs('Apps'),         rows: buildLabRows('Apps')         },
-    'Phantom Copy': { subtitle: null, kpis: labKPIs('Phantom Copy'), rows: buildLabRows('Phantom Copy') },
-    'Lincoln Labs': { subtitle: null, kpis: labKPIs('Lincoln Labs'), rows: buildLabRows('Lincoln Labs') },
+    'Civille':      { subtitle: null, kpis: labKPIs('Civille'),     rows: buildLabRows('Civille')     },
+    'Truss':        { subtitle: null, kpis: trussKPIs(),             rows: trussRows()                 },
+    'AwesomeAPI':   { subtitle: null, kpis: labKPIs('AwesomeAPI'),   rows: buildLabRows('AwesomeAPI')  },
+    'Apps':         { subtitle: null, kpis: labKPIs('Apps'),         rows: buildLabRows('Apps')        },
+    'Lincoln Labs': { subtitle: null, kpis: labKPIs('Lincoln Labs'), rows: buildLabRows('Lincoln Labs')},
   };
 
   // ── Unassigned ─────────────────────────────────────────────────────────────

@@ -130,9 +130,9 @@ header {
   letter-spacing: -0.02em; line-height: 1;
 }
 
-/* ── Overview summary KPI grid (7 cols) ──────────────────────────────────── */
+/* ── Overview summary KPI grid (6 cols) ──────────────────────────────────── */
 .kpi-grid-7 {
-  display: grid; grid-template-columns: repeat(7, 1fr);
+  display: grid; grid-template-columns: repeat(6, 1fr);
   gap: 16px; margin-bottom: 32px;
 }
 .kpi-grid-7 .kpi-card {
@@ -242,7 +242,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .kpi-grid-7 { grid-template-columns: repeat(4, 1fr); }
+  .kpi-grid-7 { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 768px) {
   .shell { padding: 24px 16px 48px; }
@@ -300,12 +300,11 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     'Truss':        '#a855f7',
     'AwesomeAPI':   '#eab308',
     'Apps':         '#f97316',
-    'Phantom Copy': '#ec4899',
     'Lincoln Labs': '#06b6d4',
     'Unassigned':   '#7a7870',
   };
 
-  const TABS = ['Overview', 'Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Phantom Copy', 'Lincoln Labs Co.', 'Unassigned'];
+  const TABS = ['Overview', 'Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs Co.', 'Unassigned'];
 
   // ── Default date range helpers ────────────────────────────────────────────
   function defaultDateRange() {
@@ -469,7 +468,6 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       case 'Truss':            el.innerHTML = renderTrussTab(); break;
       case 'AwesomeAPI':       el.innerHTML = renderLabTab('AwesomeAPI'); break;
       case 'Apps':             el.innerHTML = renderLabTab('Apps'); break;
-      case 'Phantom Copy':     el.innerHTML = renderLabTab('Phantom Copy'); break;
       case 'Lincoln Labs Co.': el.innerHTML = renderLabTab('Lincoln Labs'); break;
       case 'Unassigned':       el.innerHTML = renderUnassignedTab(); break;
       default:                 el.innerHTML = '<div class="state-msg">Tab not found.</div>';
@@ -596,13 +594,12 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const netInc  = sum(s.netIncome);
 
     const summaryKPIs = [
-      { label: 'Total Revenue',    value: fmtKPI(totInc), color: 'var(--action)' },
+      { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)' },
       { label: 'Total COGS',       value: fmtKPI(totCOGS), color: 'var(--text)' },
-      { label: 'Gross Profit',     value: fmtKPI(gp),     color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',     value: fmtPct(gm),     color: 'var(--muted)' },
-      { label: 'Total Expenses',   value: fmtKPI(totExp), color: 'var(--text)' },
-      { label: 'Net Op. Income',   value: fmtKPI(netOp),  color: netOp >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Net Income',       value: fmtKPI(netInc), color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
+      { label: 'Gross Profit',     value: fmtKPI(gp),      color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
+      { label: 'Gross Margin',     value: fmtPct(gm),      color: 'var(--muted)' },
+      { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)' },
+      { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];
 
     // Section 1: Company Summary
@@ -610,7 +607,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <div class="section-label">${escH(rangeLabel)} · Company Summary</div>
       <div class="kpi-grid-7">
         ${summaryKPIs.map(k => `
-          <div class="kpi-card">
+          <div class="kpi-card" style="border:1px solid var(--border)">
             <div class="kpi-label">${escH(k.label)}</div>
             <div class="kpi-value" style="color:${k.color}">${escH(String(k.value))}</div>
           </div>`).join('')}
@@ -703,10 +700,11 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
     html += `</tbody></table></div></div>`;
 
-    // Section 3: Monthly P&L Summary
+    // Section 3: Monthly P&L Summary — exclude net_op (same as net_income)
+    const fullRows = (data.fullPLRows || []).filter(r => r.type !== 'net_op');
     html += `<div class="section-gap">
       <div class="section-label">Monthly P&amp;L Summary</div>
-      ${buildPLTable(data.fullPLRows || [], months, partial)}
+      ${buildPLTable(fullRows, months, partial)}
     </div>`;
 
     return html;
@@ -731,12 +729,12 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
     // KPI strip
     const kpiDefs = labKey === 'Truss' ? [] : [
-      { label: 'Revenue',          value: fmtKPI(kpis.revenue),      color },
-      { label: 'COGS',             value: fmtKPI(kpis.cogs),         color: 'var(--text)' },
-      { label: 'Gross Profit',     value: fmtKPI(kpis.grossProfit),  color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',     value: fmtPct(kpis.gmPct),        color: 'var(--muted)' },
-      { label: 'Total Expenses',   value: fmtKPI(kpis.totalExpenses), color: 'var(--text)' },
-      { label: 'Net Op. Income' + (labData.subtitle ? ' (Est.)' : ''), value: fmtKPI(kpis.netOpIncome), color: kpis.netOpIncome >= 0 ? 'var(--action)' : 'var(--neg)' },
+      { label: 'Revenue',        value: fmtKPI(kpis.revenue),       color },
+      { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)' },
+      { label: 'Gross Profit',   value: fmtKPI(kpis.grossProfit),   color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
+      { label: 'Gross Margin',   value: fmtPct(kpis.gmPct),         color: 'var(--muted)' },
+      { label: 'Total Expenses', value: fmtKPI(kpis.totalExpenses), color: 'var(--text)' },
+      { label: 'Net Income (Est.)', value: fmtKPI(kpis.netOpIncome), color: kpis.netOpIncome >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];
 
     if (kpiDefs.length > 0) {

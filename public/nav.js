@@ -46,14 +46,11 @@
       gap: 10px;
       text-decoration: none;
     }
-    #ll-nav .ll-brand-mark {
-      font-family: 'Fraunces', serif;
-      font-style: italic;
-      font-weight: 300;
-      font-size: 1.1rem;
-      color: #e8e6e0;
-      letter-spacing: -0.01em;
-      line-height: 1;
+    #ll-nav .ll-brand-logo {
+      height: 30px;
+      width: auto;
+      display: block;
+      flex-shrink: 0;
     }
     #ll-nav .ll-brand-label {
       font-size: 0.6rem;
@@ -128,7 +125,7 @@
   brand.href = '/';
   brand.className = 'll-brand';
   brand.innerHTML = `
-    <span class="ll-brand-mark">LL</span>
+    <img src="/images/ll-logo-white.png" alt="Lincoln Labs" class="ll-brand-logo">
     <span class="ll-brand-label">Lincoln Labs</span>
   `;
   nav.appendChild(brand);

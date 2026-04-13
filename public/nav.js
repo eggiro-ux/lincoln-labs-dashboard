@@ -42,7 +42,7 @@
     }
     #ll-nav .ll-brand {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 10px;
       text-decoration: none;
     }

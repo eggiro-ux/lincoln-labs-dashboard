@@ -457,6 +457,21 @@ function parsePL(pl) {
              totalExpenses, netIncome, netMarginPct, ...opts };
   }
 
+  // Pre-compute unassigned expense totals here so the BU catch-all row can reference them
+  // (they'd normally be computed later in the unassigned block, but buRows needs them first)
+  const reconciliationItems = unassignedExpenses.filter(r =>
+    r.label.toLowerCase().includes('z — over') ||
+    r.label.toLowerCase().includes('z - over') ||
+    r.label.toLowerCase().includes('qb payment') ||
+    r.label.toLowerCase().includes('quickbooks payment')
+  );
+  const reconciliationTotal  = sumRows(reconciliationItems).reduce((a,b)=>a+b,0);
+  const pureUntaggedExp      = unassignedExpenses.filter(r => !reconciliationItems.includes(r));
+  const untaggedExpTotal     = sumRows(pureUntaggedExp).reduce((a,b)=>a+b,0);
+  const untaggedIncomeTotal  = sumRows(unassignedIncome).reduce((a,b)=>a+b,0);
+  // Total unassigned expenses (pure untagged + reconciliation items)
+  const unassignedExpForBU   = untaggedExpTotal + reconciliationTotal;
+
   // Phantom Copy is now folded into Civille, so labIncome['Civille'] already includes it
   const civilleRev        = sumRows(labIncome['Civille'] || []);
   const trussServiceRev   = sumRows(trussServiceFees);
@@ -466,6 +481,7 @@ function parsePL(pl) {
   const llRev             = sumRows(labIncome['Lincoln Labs'] || []);
   const otherRev          = sumRows(unassignedIncome);
   const otherRevTotal     = otherRev.reduce((a, b) => a + b, 0);
+  const unassignedNetIncome = otherRevTotal - unassignedExpForBU;
 
   const buRows = [
     makeRevRow('Civille', civilleRev, labCOGS['Civille'] || [], labExpenses['Civille'] || []),
@@ -474,9 +490,12 @@ function parsePL(pl) {
     makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []),
     makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []),
     makeRevRow('Lincoln Labs Co.', llRev, labCOGS['Lincoln Labs'] || [], labExpenses['Lincoln Labs'] || []),
-    { name: 'Other Income', monthRevenue: otherRev, totalRevenue: otherRevTotal,
+    { name: 'Unassigned / Other', monthRevenue: otherRev, totalRevenue: otherRevTotal,
       totalCOGS: 0, grossProfit: otherRevTotal, gmPct: null,
-      totalExpenses: 0, netIncome: otherRevTotal, netMarginPct: null, isOther: true },
+      totalExpenses: unassignedExpForBU,
+      netIncome: unassignedNetIncome,
+      netMarginPct: otherRevTotal ? parseFloat((unassignedNetIncome / otherRevTotal * 100).toFixed(1)) : null,
+      isOther: true },
   ];
 
   // Fix Truss COGS + Expenses distribution for BU rows
@@ -619,17 +638,8 @@ function parsePL(pl) {
   };
 
   // ── Unassigned ─────────────────────────────────────────────────────────────
-  const reconciliationItems = unassignedExpenses.filter(r =>
-    r.label.toLowerCase().includes('z — over') ||
-    r.label.toLowerCase().includes('z - over') ||
-    r.label.toLowerCase().includes('qb payment') ||
-    r.label.toLowerCase().includes('quickbooks payment')
-  );
-  const reconciliationTotal = sumRows(reconciliationItems).reduce((a,b)=>a+b,0);
-
-  const untaggedIncomeTotal = sumRows(unassignedIncome).reduce((a,b)=>a+b,0);
-  const pureUntaggedExp     = unassignedExpenses.filter(r => !reconciliationItems.includes(r));
-  const untaggedExpTotal    = sumRows(pureUntaggedExp).reduce((a,b)=>a+b,0);
+  // (reconciliationItems, pureUntaggedExp, untaggedExpTotal, untaggedIncomeTotal
+  //  are all pre-computed above before buRows so the catch-all row reconciles correctly)
 
   const unassigned = {
     kpis: {

@@ -132,9 +132,9 @@ function matchLab(text) {
   if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
   if (/lincoln/.test(t))    return 'Lincoln Labs';
+  if (/accomplice/.test(t)) return 'Truss';     // Accomplice is a Truss product line
   if (/\btruss\b/.test(t))  return 'Truss';
   if (/\bapps?\b/.test(t))  return 'Apps';
-  // accomplice → unassigned (null)
   return null;
 }
 
@@ -472,10 +472,31 @@ function parsePL(pl) {
   // Total unassigned expenses (pure untagged + reconciliation items)
   const unassignedExpForBU   = untaggedExpTotal + reconciliationTotal;
 
+  // ── Single consolidated Truss BU row ─────────────────────────────────────────
+  // Uses the same "total margin" model as the revenue dashboard (truss_total_margin):
+  //   Economic revenue = (svc fees + device procurement + recruiting + accomplice)
+  //                    + (client salary income − client salary COGS)
+  // This avoids inflating totals with gross pass-through figures.
+  // trussPassThrough (defined above) already identifies the client-salary income rows.
+  const trussSalCOGSRows   = (labCOGS['Truss'] || []).filter(r =>
+    r.label.toLowerCase().includes('client') ||
+    r.label.toLowerCase().includes('salary') ||
+    r.label.toLowerCase().includes('salari')
+  );
+  const trussNonSalIncRows = (labIncome['Truss'] || []).filter(r => !trussPassThrough.includes(r));
+  const trussNonSalRevMo   = sumRows(trussNonSalIncRows);   // svc fees + device + recruiting + accomplice
+  const trussSalIncMo      = sumRows(trussPassThrough);     // gross client salary income
+  const trussSalCOGSMo     = sumRows(trussSalCOGSRows);     // client salary COGS
+  const trussSalDeltaMo    = trussSalIncMo.map((v, i) => v - trussSalCOGSMo[i]);
+  const trussEconRevMo     = trussNonSalRevMo.map((v, i) => v + trussSalDeltaMo[i]);
+  const trussEconRevTotal  = trussEconRevMo.reduce((a, b) => a + b, 0);
+  const trussBUExpTotal    = sumRows(labExpenses['Truss'] || []).reduce((a, b) => a + b, 0);
+  const trussBUNetIncome   = trussEconRevTotal - trussBUExpTotal;
+  const trussBUMarginPct   = trussEconRevTotal
+    ? parseFloat((trussBUNetIncome / trussEconRevTotal * 100).toFixed(1)) : null;
+
   // Phantom Copy is now folded into Civille, so labIncome['Civille'] already includes it
   const civilleRev        = sumRows(labIncome['Civille'] || []);
-  const trussServiceRev   = sumRows(trussServiceFees);
-  const trussPassThruRev  = sumRows(trussPassThrough);
   const awesomeRev        = sumRows(labIncome['AwesomeAPI'] || []);
   const appsRev           = sumRows(labIncome['Apps'] || []);
   const llRev             = sumRows(labIncome['Lincoln Labs'] || []);
@@ -485,8 +506,9 @@ function parsePL(pl) {
 
   const buRows = [
     makeRevRow('Civille', civilleRev, labCOGS['Civille'] || [], labExpenses['Civille'] || []),
-    makeRevRow('Truss (service fees only)', trussServiceRev, [], [], { trussSubType: 'service_fees' }),
-    makeRevRow('Truss (client salaries pass-through)', trussPassThruRev, [], [], { trussSubType: 'passthrough' }),
+    { name: 'Truss', monthRevenue: trussEconRevMo, totalRevenue: trussEconRevTotal,
+      totalCOGS: 0, grossProfit: trussEconRevTotal, gmPct: null,
+      totalExpenses: trussBUExpTotal, netIncome: trussBUNetIncome, netMarginPct: trussBUMarginPct },
     makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []),
     makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []),
     makeRevRow('Lincoln Labs Co.', llRev, labCOGS['Lincoln Labs'] || [], labExpenses['Lincoln Labs'] || []),
@@ -497,29 +519,6 @@ function parsePL(pl) {
       netMarginPct: otherRevTotal ? parseFloat((unassignedNetIncome / otherRevTotal * 100).toFixed(1)) : null,
       isOther: true },
   ];
-
-  // Fix Truss COGS + Expenses distribution for BU rows
-  // Expenses all go to service-fees row (pass-through has no real operating expenses)
-  const trussTotalCOGS    = sumRows(labCOGS['Truss'] || []).reduce((a,b)=>a+b,0);
-  const trussTotalExp     = sumRows(labExpenses['Truss'] || []).reduce((a,b)=>a+b,0);
-  const trussServiceTotal = trussServiceRev.reduce((a,b)=>a+b,0);
-  const trussPassTotal    = trussPassThruRev.reduce((a,b)=>a+b,0);
-  const trussTotal        = trussServiceTotal + trussPassTotal;
-  if (trussTotal > 0) {
-    buRows[1].totalCOGS     = Math.round(trussTotalCOGS * trussServiceTotal / trussTotal);
-    buRows[2].totalCOGS     = Math.round(trussTotalCOGS * trussPassTotal    / trussTotal);
-    buRows[1].grossProfit   = buRows[1].totalRevenue - buRows[1].totalCOGS;
-    buRows[2].grossProfit   = buRows[2].totalRevenue - buRows[2].totalCOGS;
-    buRows[1].gmPct         = buRows[1].totalRevenue ? parseFloat((buRows[1].grossProfit / buRows[1].totalRevenue * 100).toFixed(1)) : null;
-    buRows[2].gmPct         = buRows[2].totalRevenue ? parseFloat((buRows[2].grossProfit / buRows[2].totalRevenue * 100).toFixed(1)) : null;
-    // Assign all Truss expenses to service fees (pass-through is a cost conduit, not a P&L center)
-    buRows[1].totalExpenses = trussTotalExp;
-    buRows[2].totalExpenses = 0;
-    buRows[1].netIncome     = buRows[1].grossProfit - buRows[1].totalExpenses;
-    buRows[2].netIncome     = buRows[2].grossProfit;
-    buRows[1].netMarginPct  = buRows[1].totalRevenue ? parseFloat((buRows[1].netIncome / buRows[1].totalRevenue * 100).toFixed(1)) : null;
-    buRows[2].netMarginPct  = buRows[2].totalRevenue ? parseFloat((buRows[2].netIncome / buRows[2].totalRevenue * 100).toFixed(1)) : null;
-  }
 
   // ── Per-lab P&L rows ───────────────────────────────────────────────────────
   function buildLabRows(labName, opts = {}) {

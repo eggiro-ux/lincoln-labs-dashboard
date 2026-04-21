@@ -621,20 +621,19 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const buRows = data.buRows || [];
 
     // Compute totals for BU table footer
-    let totalRev = 0, totalCOGS = 0, totalGP = 0;
+    let totalRev = 0, totalExp = 0, totalNet = 0;
     buRows.forEach(r => {
-      totalRev  += r.totalRevenue || 0;
-      totalCOGS += r.totalCOGS   || 0;
-      totalGP   += r.grossProfit || 0;
+      totalRev += r.totalRevenue  || 0;
+      totalExp += r.totalExpenses || 0;
+      totalNet += r.netIncome     || 0;
     });
-    // Also need per-month totals
+    // Per-month revenue totals
     const monthRevTotals = Array(N).fill(0);
     buRows.forEach(r => {
       (r.monthRevenue || []).forEach((v, i) => { monthRevTotals[i] += v || 0; });
     });
-    const totalGM = totalRev ? totalGP / totalRev * 100 : null;
+    const totalNetMargin = totalRev ? totalNet / totalRev * 100 : null;
 
-    const totLbl  = periodLabel(months);
     const monthHdrs = months.map((m, i) => {
       const short = m.split(' ')[0];
       const mtdMark = partial.includes(i) ? '<span style="font-size:0.55em;opacity:0.7"> MTD</span>' : '';
@@ -649,20 +648,19 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <th style="text-align:left">Business Unit</th>
         ${monthHdrs}
         <th>Total Revenue</th>
-        <th>Total COGS</th>
-        <th>Gross Profit</th>
-        <th>GM %</th>
+        <th>Total Expenses</th>
+        <th>Net Income</th>
+        <th>Net Margin %</th>
       </tr></thead>
       <tbody>`;
 
     buRows.forEach(r => {
       const isPassThrough = r.trussSubType === 'passthrough';
       const labKey = r.name.includes('Civille') ? 'Civille'
-                   : r.name.includes('Phantom')  ? 'Phantom Copy'
-                   : r.name.includes('Truss')     ? 'Truss'
-                   : r.name.includes('Awesome')   ? 'AwesomeAPI'
-                   : r.name.includes('Apps')      ? 'Apps'
-                   : r.name.includes('Lincoln')   ? 'Lincoln Labs'
+                   : r.name.includes('Truss')    ? 'Truss'
+                   : r.name.includes('Awesome')  ? 'AwesomeAPI'
+                   : r.name.includes('Apps')     ? 'Apps'
+                   : r.name.includes('Lincoln')  ? 'Lincoln Labs'
                    : null;
       const dotColor = labKey ? (LAB_COLORS[labKey] || 'var(--muted)') : 'var(--muted)';
 
@@ -670,12 +668,13 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         `<td class="num">${fmtDollar(v)}</td>`
       ).join('');
 
-      const gmCell = r.gmPct != null
-        ? `<td class="num${r.gmPct >= 20 ? ' pos' : ''}">${fmtPct(r.gmPct)}</td>`
-        : `<td class="num">—</td>`;
+      const net    = r.netIncome ?? null;
+      const margin = r.netMarginPct ?? null;
+      const netCell    = net    != null ? `<td class="num${net    >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(net)}</td>` : `<td class="num">—</td>`;
+      const marginCell = margin != null ? `<td class="num${margin >= 0 ? ' pos' : ' neg-val'}">${fmtPct(margin)}</td>` : `<td class="num">—</td>`;
 
-      const rowClass = isPassThrough ? 't-bu-passthrough' : '';
-      const labelStyle = isPassThrough ? 'style="font-style:italic;color:var(--muted)"' : '';
+      const rowClass    = isPassThrough ? 't-bu-passthrough' : '';
+      const labelStyle  = isPassThrough ? 'style="font-style:italic;color:var(--muted)"' : '';
 
       html += `<tr class="t-row ${rowClass}">
         <td class="lbl">
@@ -684,9 +683,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         </td>
         ${monthCells}
         <td class="num">${fmtDollar(r.totalRevenue)}</td>
-        <td class="num">${fmtDollar(r.totalCOGS)}</td>
-        <td class="num${r.grossProfit >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(r.grossProfit)}</td>
-        ${gmCell}
+        <td class="num">${fmtDollar(r.totalExpenses)}</td>
+        ${netCell}
+        ${marginCell}
       </tr>`;
     });
 
@@ -696,9 +695,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <td class="lbl-plain" style="font-weight:500">Total</td>
       ${totalMonthCells}
       <td class="num pos">${fmtDollar(totalRev)}</td>
-      <td class="num">${fmtDollar(totalCOGS)}</td>
-      <td class="num${totalGP >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(totalGP)}</td>
-      <td class="num">${fmtPct(totalGM)}</td>
+      <td class="num">${fmtDollar(totalExp)}</td>
+      <td class="num${totalNet >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(totalNet)}</td>
+      <td class="num${totalNetMargin != null && totalNetMargin >= 0 ? ' pos' : ' neg-val'}">${fmtPct(totalNetMargin)}</td>
     </tr>`;
 
     html += `</tbody></table></div></div>`;

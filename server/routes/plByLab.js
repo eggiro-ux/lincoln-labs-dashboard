@@ -145,20 +145,32 @@ function buildLabel(parentSectionName, rowLabel) {
   if (!p) return r;
 
   const pl = p.toLowerCase();
-  if (pl === 'offshore labor')                   return `Offshore Labor — ${r}`;
-  if (pl === 'onshore')                          return `Onshore — ${r}`;
-  if (pl.includes('wages'))                      return `Payroll — Wages: ${r}`;
-  if (pl.includes('taxes') && pl.includes('payroll')) return `Payroll — Taxes: ${r}`;
-  if (pl.includes('health insurance'))           return `Payroll — Health Insurance: ${r}`;
-  if (pl.includes('dental') || pl.includes('vision')) return `Payroll — Dental/Vision: ${r}`;
+
+  // Generic top-level containers — child label is self-describing in context
+  if (pl === 'income' || pl === 'revenue' || pl === 'sales') return r;
+  if (pl.includes('cost of goods') || pl === 'cogs')         return `COGS — ${r}`;
+
+  // Specific category mappings
+  if (pl === 'offshore labor')                            return `Offshore Labor — ${r}`;
+  if (pl === 'onshore')                                   return `Onshore — ${r}`;
+  if (pl.includes('wages') || pl.includes('salaries'))    return `Payroll — Wages: ${r}`;
+  if (pl.includes('taxes') && pl.includes('payroll'))     return `Payroll — Taxes: ${r}`;
+  if (pl.includes('health insurance'))                    return `Payroll — Health Insurance: ${r}`;
+  if (pl.includes('dental') || pl.includes('vision'))     return `Payroll — Dental/Vision: ${r}`;
   if (pl.includes('advertising') || pl.includes('marketing')) return `Advertising & Marketing — ${r}`;
-  if (pl.includes('internal meetings'))          return `Internal Meetings — ${r}`;
+  if (pl.includes('meals') || pl.includes('entertainment')) return `Meals & Entertainment — ${r}`;
+  if (pl.includes('travel') || pl.includes('transportation')) return `Travel & Transportation — ${r}`;
+  if (pl.includes('internal meetings'))                   return `Internal Meetings — ${r}`;
   if (pl.includes('legal') || pl.includes('professional')) return `Legal & Professional — ${r}`;
-  if (pl.includes('merchant'))                   return `Merchant Fees — ${r}`;
-  if (pl === 'software')                         return `Software — ${r}`;
-  if (pl.includes('rent') || pl.includes('lease')) return `Rent — ${r}`;
-  if (pl.includes('referral'))                   return `Referral Commissions — ${r}`;
-  if (pl === 'lincoln labs')                     return `Lincoln Labs — ${r}`;
+  if (pl.includes('merchant') || pl.includes('processing fee')) return `Merchant Fees — ${r}`;
+  if (pl === 'software' || pl.includes('subscriptions') || pl.includes('dues')) return `Software & Subscriptions — ${r}`;
+  if (pl.includes('rent') || pl.includes('lease'))        return `Rent — ${r}`;
+  if (pl.includes('referral'))                            return `Referral Commissions — ${r}`;
+  if (pl.includes('taxes') || pl.includes('licenses'))    return `Taxes & Licenses — ${r}`;
+  if (pl.includes('payroll'))                             return `Payroll — ${r}`;
+  if (pl === 'lincoln labs')                              return `Lincoln Labs — ${r}`;
+  if (pl.includes('insurance'))                           return `Insurance — ${r}`;
+  if (pl.includes('utilities') || pl.includes('telephone') || pl.includes('internet')) return `Utilities — ${r}`;
   return `${p} — ${r}`;
 }
 
@@ -287,9 +299,11 @@ function parsePL(pl) {
         if (header) {
           const headerVals = row.Header.ColData.length > 1 ? getVals(row.Header.ColData) : null;
           if (headerVals && headerVals.some(v => v !== 0)) {
-            // Parent account has its own postings (e.g. "Civille" with $176K direct revenue)
-            fullPLRows.push({ label: header, values: headerVals, type: 'row' });
-            routeDataRow(topSectionType, header, parentSectionName, header, headerVals);
+            // Parent account has its own postings — build a descriptive label using
+            // the parent section for context (same logic as Data rows)
+            const displayLabel = buildLabel(parentSectionName, header);
+            fullPLRows.push({ label: displayLabel, values: headerVals, type: 'row' });
+            routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals);
           } else {
             fullPLRows.push({ label: header, type: 'section_header' });
           }

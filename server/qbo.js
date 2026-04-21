@@ -165,6 +165,21 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
 
   processRows(rows);
 
+  // Extract Net Income per month from QBO's computed summary row
+  const netIncomeByMonth = monthCols.map(() => null);
+  for (const topRow of rows) {
+    if (topRow.type !== 'Section') continue;
+    const h = (topRow.Header?.ColData?.[0]?.value || '').toLowerCase();
+    const s = (topRow.Summary?.ColData?.[0]?.value || '').toLowerCase();
+    if ((h.startsWith('net income') || s.startsWith('net income')) && topRow.Summary?.ColData) {
+      monthCols.forEach((col, i) => {
+        const raw = topRow.Summary.ColData[col.idx + colDataOffset]?.value || '0';
+        netIncomeByMonth[i] = Math.round(parseFloat(raw) * 100) / 100;
+      });
+      break;
+    }
+  }
+
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const fmtLabel = isoDate => {
     if (!isoDate) return null;
@@ -175,6 +190,7 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
   const months = [];
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
+  seriesArrays['net_income'] = [];
 
   monthCols.forEach((col, i) => {
     const label = fmtLabel(col.startDate) || col.label;
@@ -183,6 +199,7 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
     for (const key of Object.keys(ACCOUNT_MAP)) {
       seriesArrays[key].push(agg[key] ?? null);
     }
+    seriesArrays['net_income'].push(netIncomeByMonth[i]);
   });
 
   return { months, series: seriesArrays };
@@ -267,6 +284,21 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
   const currentSeries = aggregateSeries(cur.income, cur.expense);
   const priorSeries   = aggregateSeries(prior.income, prior.expense);
 
+  // Extract Net Income from QBO's computed summary row (total P&L, ColData[1] = single value)
+  function extractNetIncome(pl) {
+    for (const row of (pl.Rows?.Row || [])) {
+      if (row.type !== 'Section') continue;
+      const h = (row.Header?.ColData?.[0]?.value || '').toLowerCase();
+      const s = (row.Summary?.ColData?.[0]?.value || '').toLowerCase();
+      if ((h.startsWith('net income') || s.startsWith('net income')) && row.Summary?.ColData) {
+        return Math.round(parseFloat(row.Summary.ColData[1]?.value || '0') * 100) / 100;
+      }
+    }
+    return 0;
+  }
+  const curNetIncome   = extractNetIncome(curPL);
+  const priorNetIncome = extractNetIncome(priorPL);
+
   const comparison = {};
   for (const [key, config] of Object.entries(ACCOUNT_MAP)) {
     const current  = currentSeries[key] || 0;
@@ -274,6 +306,13 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
     const delta    = Math.round((current - previous) * 100) / 100;
     comparison[key] = { label: config.label, color: config.color, current, previous, delta };
   }
+  comparison['net_income'] = {
+    label:    'Net Income',
+    color:    '#f43f5e',
+    current:  curNetIncome,
+    previous: priorNetIncome,
+    delta:    Math.round((curNetIncome - priorNetIncome) * 100) / 100,
+  };
 
   return {
     currentPeriod: { start: fmt(curStart), end: fmt(curEnd) },

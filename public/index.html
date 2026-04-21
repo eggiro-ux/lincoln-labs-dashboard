@@ -227,6 +227,7 @@
             <option value="truss_sal_delta">Truss Salaries</option>
             <option value="truss_svc_rec">Truss Svc Fees</option>
             <option value="lincoln_labs">Lincoln Labs Total</option>
+            <option value="net_income">Net Income</option>
           </select>
         </div>
         <button id="currentMonthToggle" class="btn" onclick="toggleCurrentMonth()" style="font-size:0.68rem;padding:7px 14px;white-space:nowrap;">Show Current Month</button>
@@ -307,6 +308,7 @@ const SERIES_CONFIG = [
   { key: 'truss_sal_delta',    label: 'Truss Client Salaries (Income − Exp)', color: '#a855f7', dash: [],    periodLabel: 'Truss Salaries Delta' },
   { key: 'truss_svc_rec',      label: 'Truss Svc Fees + Recruitment',         color: '#3b82f6', dash: [],    periodLabel: 'Truss Service Fees' },
   { key: 'lincoln_labs',       label: 'Lincoln Labs Total',                   color: '#e5e5e5', dash: [4,4], periodLabel: 'Lincoln Labs' },
+  { key: 'net_income',         label: 'Net Income',                           color: '#f43f5e', dash: [],   periodLabel: 'Net Income' },
 ];
 
 const MARGIN = { top: 24, right: 32, bottom: 52, left: 72 };

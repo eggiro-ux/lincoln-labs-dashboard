@@ -189,6 +189,22 @@ function subtotalLabel(sectionName) {
   return `Total ${sectionName}`;
 }
 
+// ── Group display name normalizer ────────────────────────────────────────────
+// Maps raw QBO section names to user-friendly group labels
+function groupDisplayName(raw) {
+  const MAP = {
+    'Software':                      'Software & Subscriptions',
+    'Dues & subscriptions':          'Dues & Subscriptions',
+    'Merchant fees':                 'Merchant Fees',
+    'Meals & Entertainment':         'Meals & Entertainment',
+  };
+  return MAP[raw] || raw;
+}
+
+function slugify(s) {
+  return (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
 // ── Core parser ───────────────────────────────────────────────────────────────
 function parsePL(pl) {
   const cols = pl.Columns?.Column || [];
@@ -254,7 +270,7 @@ function parsePL(pl) {
   // parentSectionName: the display name of the immediate parent section (for label construction)
   // topSectionType: 'income' | 'cogs' | 'expenses'
   // Route a data row (label + values) into the correct lab bucket.
-  function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals) {
+  function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName) {
     const lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
     if (topSectionType === 'income') {
       if (lab) {
@@ -277,21 +293,29 @@ function parsePL(pl) {
       for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
     } else {
       // expenses — do NOT accumulate sumExpenses here (top-level totals used)
+      // Store group metadata so buildLabRows can emit collapsible sections
       if (lab) {
         labExpenses[lab] = labExpenses[lab] || [];
-        labExpenses[lab].push({ label: displayLabel, values: vals });
+        labExpenses[lab].push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals });
+        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName });
       }
     }
   }
 
-  function walkSection(rows, topSectionType, parentSectionName, depth) {
+  // groupName: for expenses, the name of the top-level expense category (depth=0 under Expenses).
+  // This is threaded down the recursion so every leaf row knows which group it belongs to,
+  // enabling collapsible grouped sections in the lab-specific P&L views.
+  function walkSection(rows, topSectionType, parentSectionName, depth, groupName) {
     for (const row of (rows || [])) {
       if (row.type === 'Section') {
         const header  = row.Header?.ColData?.[0]?.value || '';
         const summary = row.Summary?.ColData?.[0]?.value || '';
         const sName   = header || summary;
+
+        // For expense sections, the first level (direct children of "Expenses") defines the group.
+        // Compute this before handling the header so own-postings rows get the right group too.
+        const currentGroup = (topSectionType === 'expenses' && !groupName) ? sName : groupName;
 
         // QBO puts a parent account's own postings in Section Header.ColData when
         // it has sub-accounts. Detect this and emit as a data row; otherwise emit
@@ -303,15 +327,15 @@ function parsePL(pl) {
             // the parent section for context (same logic as Data rows)
             const displayLabel = buildLabel(parentSectionName, header);
             fullPLRows.push({ label: displayLabel, values: headerVals, type: 'row' });
-            routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals);
+            routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals, currentGroup);
           } else {
             fullPLRows.push({ label: header, type: 'section_header' });
           }
         }
 
-        // Recurse into children
+        // Recurse into children, passing the resolved group name down
         if (row.Rows?.Row) {
-          walkSection(row.Rows.Row, topSectionType, sName, depth + 1);
+          walkSection(row.Rows.Row, topSectionType, sName, depth + 1, currentGroup);
         }
 
         // Emit section summary (subtotal) row
@@ -336,7 +360,7 @@ function parsePL(pl) {
         fullPLRows.push({ label: displayLabel, values: vals, type: 'row' });
 
         if (vals.some(v => v !== 0)) {
-          routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals);
+          routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName);
         }
       }
     }
@@ -544,10 +568,47 @@ function parsePL(pl) {
       rows.push({ label: 'Gross Profit', values: gp, type: 'gross_profit' });
     }
 
-    // Expenses
+    // Expenses — grouped by QBO top-level expense category (collapsible in the UI)
     if (expRows.length > 0) {
       rows.push({ label: 'OPERATING EXPENSES', type: 'section_header' });
-      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+
+      // Partition into grouped (have a .group) vs ungrouped fallbacks
+      const groupMap  = new Map(); // preserves insertion order
+      const ungrouped = [];
+      for (const r of expRows) {
+        if (r.group) {
+          if (!groupMap.has(r.group)) groupMap.set(r.group, []);
+          groupMap.get(r.group).push(r);
+        } else {
+          ungrouped.push(r);
+        }
+      }
+
+      // Ungrouped rows first (shouldn't be many; mainly a safety fallback)
+      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+
+      // Grouped expense sections — each group gets a collapsible header + child rows
+      for (const [grpName, grpRows] of groupMap) {
+        const grpTotal = sumRows(grpRows);
+        const grpId    = slugify(grpName);
+        const grpLabel = groupDisplayName(grpName);
+
+        // Group header: bold, clickable, shows subtotal
+        rows.push({ label: grpLabel, values: grpTotal, type: 'group_header', groupId: grpId });
+
+        // Child rows: use parentSectionName as sub-label when it adds context
+        // (i.e. it's a named sub-category rather than just the group name itself)
+        grpRows.forEach(r => {
+          const useSub = r.subLabel && r.subLabel !== grpName;
+          rows.push({
+            label:   useSub ? r.subLabel : r.label,
+            values:  r.values,
+            type:    'group_child',
+            groupId: grpId,
+          });
+        });
+      }
+
       const totalExp = sumRows(expRows);
       rows.push({ label: 'Total Expenses', values: totalExp, type: 'total_expenses' });
 
@@ -630,7 +691,7 @@ function parsePL(pl) {
   // Civille already includes Phantom Copy (matchLab routes phantom → Civille)
   const labs = {
     'Civille':      { subtitle: null, kpis: labKPIs('Civille'),     rows: buildLabRows('Civille')     },
-    'Truss':        { subtitle: null, kpis: trussKPIs(),             rows: trussRows()                 },
+    'Truss':        { subtitle: null, kpis: trussKPIs(),             rows: buildLabRows('Truss')       },
     'AwesomeAPI':   { subtitle: null, kpis: labKPIs('AwesomeAPI'),   rows: buildLabRows('AwesomeAPI')  },
     'Apps':         { subtitle: null, kpis: labKPIs('Apps'),         rows: buildLabRows('Apps')        },
     'Lincoln Labs': { subtitle: null, kpis: labKPIs('Lincoln Labs'), rows: buildLabRows('Lincoln Labs')},

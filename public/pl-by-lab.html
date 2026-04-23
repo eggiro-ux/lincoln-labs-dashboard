@@ -531,7 +531,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
           const v = vals[i] || 0;
           return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
         }).join('');
-        html += `<tr class="t-group-hdr" data-gid="${gid}" onclick="toggleGroup(this)">
+        html += `<tr class="t-group-hdr" data-gid="${gid}">
           <td class="lbl">${escH(row.label)}</td>
           ${numCells}
           <td class="num">${fmtDollar(total)}</td>
@@ -932,6 +932,13 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       btn.disabled = false;
     }
   };
+
+  // ── Event delegation for collapsible expense groups ───────────────────────
+  // inline onclick can't reach functions inside this IIFE; use delegation instead
+  document.getElementById('tabContent').addEventListener('click', function (e) {
+    const hdr = e.target.closest('tr.t-group-hdr');
+    if (hdr) toggleGroup(hdr);
+  });
 
   // ── Init ───────────────────────────────────────────────────────────────────
   load();

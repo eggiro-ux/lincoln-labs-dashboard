@@ -193,6 +193,23 @@ tr.t-net-income td {
 }
 tr.t-row:hover td { background: var(--surfaceHigh); }
 
+/* ── Collapsible expense groups ──────────────────────────────────────────── */
+tr.t-group-hdr td { cursor: pointer; font-weight: 500; background: var(--surface); }
+tr.t-group-hdr:hover td { background: var(--surfaceHigh); }
+tr.t-group-hdr td.lbl::before {
+  content: '▶';
+  display: inline-block;
+  margin-right: 7px;
+  font-size: 0.5rem;
+  opacity: 0.5;
+  vertical-align: middle;
+  transition: transform 0.15s;
+}
+tr.t-group-hdr.open td.lbl::before { transform: rotate(90deg); }
+tr.t-group-child { display: none; }
+tr.t-group-child.visible { display: table-row; }
+tr.t-group-child td.lbl { padding-left: 2.25em; color: var(--muted); font-size: 0.8rem; }
+
 /* Total row in BU table */
 tr.t-bu-total td {
   background: var(--surfaceHigh); font-weight: 500; color: var(--text);
@@ -506,6 +523,40 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         continue;
       }
 
+      // ── Collapsible group header ────────────────────────────────────────────
+      if (row.type === 'group_header') {
+        const vals  = row.values || [];
+        const total = sum(vals);
+        const gid   = escH(row.groupId || '');
+        const numCells = months.map((_, i) => {
+          const v = vals[i] || 0;
+          return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
+        }).join('');
+        html += `<tr class="t-group-hdr" data-gid="${gid}" onclick="toggleGroup(this)">
+          <td class="lbl">${escH(row.label)}</td>
+          ${numCells}
+          <td class="num">${fmtDollar(total)}</td>
+        </tr>`;
+        continue;
+      }
+
+      // ── Group child row (hidden until parent expanded) ─────────────────────
+      if (row.type === 'group_child') {
+        const vals  = row.values || [];
+        const total = sum(vals);
+        const gid   = escH(row.groupId || '');
+        const numCells = months.map((_, i) => {
+          const v = vals[i] || 0;
+          return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
+        }).join('');
+        html += `<tr class="t-group-child" data-gid="${gid}">
+          <td class="lbl">${escH(row.label)}</td>
+          ${numCells}
+          <td class="num">${fmtDollar(total)}</td>
+        </tr>`;
+        continue;
+      }
+
       const vals    = row.values || [];
       const total   = sum(vals);
       const trClass = rowTrClass(row.type);
@@ -544,8 +595,20 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       case 'total_expenses': return 't-total-expenses';
       case 'net_op':         return 't-net-op';
       case 'net_income':     return 't-net-income';
+      case 'group_header':   return 't-group-hdr';
+      case 'group_child':    return 't-group-child';
       default:               return 't-row';
     }
+  }
+
+  // Toggle a collapsible expense group open/closed
+  function toggleGroup(hdr) {
+    const gid    = hdr.dataset.gid;
+    const isOpen = hdr.classList.toggle('open');
+    const table  = hdr.closest('table');
+    table.querySelectorAll(`tr.t-group-child[data-gid="${gid}"]`).forEach(r => {
+      r.classList.toggle('visible', isOpen);
+    });
   }
 
   function numClass(v, type) {

@@ -332,7 +332,7 @@ function parsePL(pl) {
             // the parent section for context (same logic as Data rows)
             const headerAccountId = row.Header.ColData[0]?.id || null;
             const displayLabel = buildLabel(parentSectionName, header);
-            fullPLRows.push({ label: displayLabel, values: headerVals, type: 'row' });
+            fullPLRows.push({ label: displayLabel, values: headerVals, type: 'row', accountId: headerAccountId });
             routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals, currentGroup, headerAccountId);
           } else {
             fullPLRows.push({ label: header, type: 'section_header' });
@@ -364,7 +364,7 @@ function parsePL(pl) {
         const vals         = getVals(row.ColData);
         const displayLabel = buildLabel(parentSectionName, rowLabel);
 
-        fullPLRows.push({ label: displayLabel, values: vals, type: 'row' });
+        fullPLRows.push({ label: displayLabel, values: vals, type: 'row', accountId });
 
         if (vals.some(v => v !== 0)) {
           routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName, accountId);

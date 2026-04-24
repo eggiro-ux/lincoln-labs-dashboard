@@ -381,6 +381,21 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
 </div><!-- /.shell -->
 
+<!-- ── Drill-down modal (must appear before the script so its elements exist when listeners are attached) ── -->
+<div id="drillModal" class="drill-modal" style="display:none">
+  <div class="drill-backdrop"></div>
+  <div class="drill-panel">
+    <div class="drill-header">
+      <div>
+        <div class="drill-title" id="drillTitle">—</div>
+        <div class="drill-period" id="drillPeriod">—</div>
+      </div>
+      <button class="drill-close" id="drillClose">✕</button>
+    </div>
+    <div class="drill-body" id="drillBody"></div>
+  </div>
+</div>
+
 <script>
 (function () {
   'use strict';
@@ -1153,19 +1168,5 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
   load();
 })();
 </script>
-<!-- ── Drill-down modal ──────────────────────────────────────────────── -->
-<div id="drillModal" class="drill-modal" style="display:none">
-  <div class="drill-backdrop"></div>
-  <div class="drill-panel">
-    <div class="drill-header">
-      <div>
-        <div class="drill-title" id="drillTitle">—</div>
-        <div class="drill-period" id="drillPeriod">—</div>
-      </div>
-      <button class="drill-close" id="drillClose">✕</button>
-    </div>
-    <div class="drill-body" id="drillBody"></div>
-  </div>
-</div>
 </body>
 </html>

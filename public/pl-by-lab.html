@@ -859,15 +859,56 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
     html += buildKPIStrip(kpiDefs);
 
+    // Helpers (mirror backend logic for display names / slugs)
+    const grpDisplayName = raw => ({
+      'Software':              'Software & Subscriptions',
+      'Dues & subscriptions':  'Dues & Subscriptions',
+      'Merchant fees':         'Merchant Fees',
+      'Meals & Entertainment': 'Meals & Entertainment',
+    }[raw] || raw);
+    const slugify = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    const sumArrays = arrs => {
+      if (!arrs.length) return [];
+      const len = Math.max(...arrs.map(a => (a || []).length));
+      const out = new Array(len).fill(0);
+      arrs.forEach(a => (a || []).forEach((v, i) => { out[i] = (out[i] || 0) + (v || 0); }));
+      return out;
+    };
+
     // Build combined rows
     const rows = [];
-    if ((u.incomeRows || []).length > 0) {
+    const incRows = u.incomeRows || [];
+    if (incRows.length > 0) {
       rows.push({ label: 'UNTAGGED INCOME', type: 'section_header' });
-      u.incomeRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      rows.push({ label: 'Total Untagged Income', values: sumArrays(incRows.map(r => r.values)), type: 'total_income' });
     }
-    if ((u.expenseRows || []).length > 0) {
+    const expRows = u.expenseRows || [];
+    if (expRows.length > 0) {
       rows.push({ label: 'UNTAGGED EXPENSES', type: 'section_header' });
-      u.expenseRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      // Group expenses by .group (mirrors buildLabRows on the server)
+      const groupMap = new Map();
+      const ungrouped = [];
+      expRows.forEach(r => {
+        if (r.group) {
+          if (!groupMap.has(r.group)) groupMap.set(r.group, []);
+          groupMap.get(r.group).push(r);
+        } else {
+          ungrouped.push(r);
+        }
+      });
+      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      for (const [grpName, grpRows] of groupMap) {
+        const grpTotal = sumArrays(grpRows.map(r => r.values));
+        const grpId    = slugify(grpName);
+        const grpLabel = grpDisplayName(grpName);
+        rows.push({ label: grpLabel, values: grpTotal, type: 'group_header', groupId: grpId });
+        grpRows.forEach(r => {
+          const useSub = r.subLabel && r.subLabel !== grpName;
+          rows.push({ label: useSub ? r.subLabel : r.label, values: r.values, type: 'group_child', groupId: grpId });
+        });
+      }
+      rows.push({ label: 'Total Untagged Expenses', values: sumArrays(expRows.map(r => r.values)), type: 'total_expenses' });
     }
 
     if (rows.length > 0) {

@@ -131,7 +131,10 @@ function matchLab(text) {
   if (/awesome/.test(t))    return 'AwesomeAPI';
   if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
+  if (/\bkansas\b/.test(t)) return 'Civille';   // Office Rent - Kansas → Civille
+  if (/back.?owed/.test(t)) return 'Lincoln Labs'; // Back-Owed Rent → Lincoln Labs
   if (/lincoln/.test(t))    return 'Lincoln Labs';
+  if (/overseas/.test(t))   return 'Truss';     // Overseas Rent & Utilities → Truss
   if (/accomplice/.test(t)) return 'Truss';     // Accomplice is a Truss product line
   if (/\btruss\b/.test(t))  return 'Truss';
   if (/\bapps?\b/.test(t))  return 'Apps';
@@ -298,7 +301,7 @@ function parsePL(pl) {
         labExpenses[lab] = labExpenses[lab] || [];
         labExpenses[lab].push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName });
+        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName });
       }
     }
   }

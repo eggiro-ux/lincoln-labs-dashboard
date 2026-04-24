@@ -17,7 +17,7 @@ const { getMonthlyData, getCurrentPeriodData } = require('./qbo');
 const { handleAsk } = require('./ask');
 const tokenStore = require('./tokenStore');
 const marketingRouter = require('./routes/marketing');
-const { getPlByLabData } = require('./routes/plByLab');
+const { getPlByLabData, getPlDrillData } = require('./routes/plByLab');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -219,6 +219,7 @@ app.post('/api/ask', requireDashboardAuth, requireQBO, async (req, res) => {
 app.use('/api', marketingRouter);
 
 app.get('/api/pl-by-lab', requireDashboardAuth, requireQBO, getPlByLabData);
+app.get('/api/pl-drill', requireDashboardAuth, requireQBO, getPlDrillData);
 
 // ─── Page routes (must be before catch-all) ───────────────────────────────────
 app.get('/pl-by-lab', (req, res) => {

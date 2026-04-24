@@ -277,13 +277,13 @@ function parsePL(pl) {
   // parentSectionName: the display name of the immediate parent section (for label construction)
   // topSectionType: 'income' | 'cogs' | 'expenses'
   // Route a data row (label + values) into the correct lab bucket.
-  function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName) {
+  function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName, accountId) {
     const lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
     if (topSectionType === 'income') {
       // Unmatched income defaults to Lincoln Labs (catch-all for misc. company income)
       const incLab = lab || 'Lincoln Labs';
       labIncome[incLab] = labIncome[incLab] || [];
-      labIncome[incLab].push({ label: displayLabel, values: vals });
+      labIncome[incLab].push({ label: displayLabel, values: vals, accountId });
       if (buRevByMonth[incLab]) {
         for (let i = 0; i < N; i++) buRevByMonth[incLab][i] += vals[i];
       }
@@ -291,9 +291,9 @@ function parsePL(pl) {
     } else if (topSectionType === 'cogs') {
       if (lab) {
         labCOGS[lab] = labCOGS[lab] || [];
-        labCOGS[lab].push({ label: displayLabel, values: vals });
+        labCOGS[lab].push({ label: displayLabel, values: vals, accountId });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals });
+        unassignedExpenses.push({ label: displayLabel, values: vals, accountId });
       }
       for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
     } else {
@@ -301,9 +301,9 @@ function parsePL(pl) {
       // Store group metadata so buildLabRows can emit collapsible sections
       if (lab) {
         labExpenses[lab] = labExpenses[lab] || [];
-        labExpenses[lab].push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName });
+        labExpenses[lab].push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName, accountId });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName });
+        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName, accountId });
       }
     }
   }
@@ -330,9 +330,10 @@ function parsePL(pl) {
           if (headerVals && headerVals.some(v => v !== 0)) {
             // Parent account has its own postings — build a descriptive label using
             // the parent section for context (same logic as Data rows)
+            const headerAccountId = row.Header.ColData[0]?.id || null;
             const displayLabel = buildLabel(parentSectionName, header);
             fullPLRows.push({ label: displayLabel, values: headerVals, type: 'row' });
-            routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals, currentGroup);
+            routeDataRow(topSectionType, displayLabel, parentSectionName, header, headerVals, currentGroup, headerAccountId);
           } else {
             fullPLRows.push({ label: header, type: 'section_header' });
           }
@@ -359,13 +360,14 @@ function parsePL(pl) {
 
       if (row.type === 'Data' && row.ColData) {
         const rowLabel     = row.ColData[0]?.value || '';
+        const accountId    = row.ColData[0]?.id    || null;   // ADD THIS
         const vals         = getVals(row.ColData);
         const displayLabel = buildLabel(parentSectionName, rowLabel);
 
         fullPLRows.push({ label: displayLabel, values: vals, type: 'row' });
 
         if (vals.some(v => v !== 0)) {
-          routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName);
+          routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName, accountId);
         }
       }
     }
@@ -559,14 +561,14 @@ function parsePL(pl) {
 
     // Income
     rows.push({ label: 'INCOME', type: 'section_header' });
-    incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+    incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
     const totalInc = sumRows(incRows);
     rows.push({ label: 'Total Income', values: totalInc, type: 'total_income' });
 
     // COGS
     if (cogsRows.length > 0) {
       rows.push({ label: 'COST OF GOODS SOLD', type: 'section_header' });
-      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
       const totalCOGS = sumRows(cogsRows);
       rows.push({ label: 'Total COGS', values: totalCOGS, type: 'total_cogs' });
       const gp = totalInc.map((v, i) => v - totalCOGS[i]);
@@ -590,7 +592,7 @@ function parsePL(pl) {
       }
 
       // Ungrouped rows first (shouldn't be many; mainly a safety fallback)
-      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
 
       // Grouped expense sections — each group gets a collapsible header + child rows
       for (const [grpName, grpRows] of groupMap) {
@@ -606,10 +608,11 @@ function parsePL(pl) {
         grpRows.forEach(r => {
           const useSub = r.subLabel && r.subLabel !== grpName;
           rows.push({
-            label:   useSub ? r.subLabel : r.label,
-            values:  r.values,
-            type:    'group_child',
-            groupId: grpId,
+            label:    useSub ? r.subLabel : r.label,
+            values:   r.values,
+            type:     'group_child',
+            groupId:  grpId,
+            accountId: r.accountId,
           });
         });
       }
@@ -667,13 +670,13 @@ function parsePL(pl) {
     const rows = [];
 
     rows.push({ label: 'INCOME', type: 'section_header' });
-    allInc.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+    allInc.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
     const totalInc = sumRows(allInc);
     rows.push({ label: 'Total Income', values: totalInc, type: 'total_income' });
 
     if (cogsRows.length > 0) {
       rows.push({ label: 'COST OF GOODS SOLD', type: 'section_header' });
-      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
       const totalCOGS = sumRows(cogsRows);
       rows.push({ label: 'Total COGS', values: totalCOGS, type: 'total_cogs' });
       const gp = totalInc.map((v, i) => v - totalCOGS[i]);
@@ -682,7 +685,7 @@ function parsePL(pl) {
 
     if (expRows.length > 0) {
       rows.push({ label: 'OPERATING EXPENSES', type: 'section_header' });
-      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
       const totalExp  = sumRows(expRows);
       rows.push({ label: 'Total Expenses', values: totalExp, type: 'total_expenses' });
       const totalCOGS2 = sumRows(cogsRows);
@@ -717,7 +720,8 @@ function parsePL(pl) {
     expenseRows: pureUntaggedExp,
   };
 
-  return { summary, buRows, fullPLRows, labs, unassigned, N };
+  return { summary, buRows, fullPLRows, labs, unassigned, N,
+    monthRanges: monthCols.map(c => ({ start: c.startDate, end: c.endDate })) };
 }
 
 // ── Route handler ─────────────────────────────────────────────────────────────
@@ -737,7 +741,7 @@ async function getPlByLabData(req, res) {
     const endDate   = months[months.length - 1].end;
 
     const pl = await fetchTotalPL(accessToken, realmId, startDate, endDate, am);
-    const { summary, buRows, fullPLRows, labs, unassigned } = parsePL(pl);
+    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges } = parsePL(pl);
 
     const partialMonths = months.reduce((acc, m, i) => { if (m.partial) acc.push(i); return acc; }, []);
 
@@ -750,6 +754,7 @@ async function getPlByLabData(req, res) {
       fullPLRows,
       labs,
       unassigned,
+      monthRanges,
     });
   } catch (err) {
     const qboErr = err.response?.data;
@@ -762,4 +767,65 @@ async function getPlByLabData(req, res) {
   }
 }
 
-module.exports = { getPlByLabData };
+async function fetchGeneralLedger(accessToken, realmId, accountId, startDate, endDate) {
+  const env    = process.env.QBO_ENVIRONMENT || 'production';
+  const base   = QBO_BASE[env];
+  const params = new URLSearchParams({ account: accountId, start_date: startDate, end_date: endDate });
+  const url    = `${base}/v3/company/${realmId}/reports/GeneralLedger?${params}`;
+  const res    = await axios.get(url, {
+    headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+  });
+  return res.data;
+}
+
+function parseGLReport(report) {
+  const columns = report.Columns?.Column || [];
+  const colIdx  = {};
+  columns.forEach((col, i) => { colIdx[col.ColType] = i; });
+
+  const get    = (cols, type) => cols[colIdx[type]]?.value || '';
+  const getId  = (cols, type) => cols[colIdx[type]]?.id    || null;
+  const getAmt = (cols) => {
+    const raw = get(cols, 'subt_nat_amount') || get(cols, 'amount');
+    return raw ? parseFloat(raw) : 0;
+  };
+
+  const transactions = [];
+  for (const section of (report.Rows?.Row || [])) {
+    for (const row of (section.Rows?.Row || [])) {
+      if (row.type !== 'Data') continue;
+      const cols = row.ColData || [];
+      transactions.push({
+        date:  get(cols, 'tx_date'),
+        type:  get(cols, 'txn_type'),
+        txnId: getId(cols, 'txn_type'),
+        num:   get(cols, 'doc_num'),
+        name:  get(cols, 'name'),
+        memo:  get(cols, 'memo'),
+        split: get(cols, 'split_acc'),
+        amount: getAmt(cols),
+      });
+    }
+  }
+  return transactions;
+}
+
+async function getPlDrillData(req, res) {
+  try {
+    const { accountId, startDate, endDate } = req.query;
+    if (!accountId || !startDate || !endDate) {
+      return res.status(400).json({ error: 'accountId, startDate, endDate are required' });
+    }
+    const accessToken  = await tokenStore.getAccessToken();
+    const realmId      = tokenStore.getRealmId();
+    const report       = await fetchGeneralLedger(accessToken, realmId, accountId, startDate, endDate);
+    const transactions = parseGLReport(report);
+    res.json({ transactions });
+  } catch (err) {
+    const qboErr = err.response?.data;
+    console.error('/api/pl-drill error:', qboErr || err.message);
+    res.status(500).json({ error: 'Failed to fetch transaction detail', detail: err.message, qbo: qboErr || null });
+  }
+}
+
+module.exports = { getPlByLabData, getPlDrillData };

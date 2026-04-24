@@ -150,6 +150,55 @@ header {
   text-transform: none; letter-spacing: 0;
 }
 .kpi-tip:hover::after { opacity: 1; }
+
+/* ── Drill-down cells ─────────────────────────────────────────────────────── */
+td.drill-cell { cursor: pointer; }
+tr.t-row td.drill-cell:hover,
+tr.t-group-child td.drill-cell:hover { background: var(--surfaceHigh) !important; color: var(--action) !important; }
+
+/* ── Drill-down modal ─────────────────────────────────────────────────────── */
+.drill-modal {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.drill-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); cursor: pointer; }
+.drill-panel {
+  position: relative; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 8px; width: 100%; max-width: 860px; max-height: 80vh;
+  display: flex; flex-direction: column; box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+}
+.drill-header {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.drill-title { font-family: 'Fraunces', serif; font-weight: 300; font-size: 1.2rem; color: var(--text); }
+.drill-period {
+  font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); margin-top: 4px;
+}
+.drill-close {
+  background: none; border: none; color: var(--muted); font-size: 1rem;
+  cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: color 0.1s, background 0.1s;
+  flex-shrink: 0;
+}
+.drill-close:hover { color: var(--text); background: var(--surfaceHigh); }
+.drill-body { overflow-y: auto; flex: 1; }
+.drill-txn-table { width: 100%; border-collapse: collapse; }
+.drill-txn-table th {
+  font-size: 0.62rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); font-weight: 400; padding: 10px 16px; text-align: left;
+  background: var(--bg); border-bottom: 1px solid var(--border); position: sticky; top: 0;
+}
+.drill-txn-table th.r, .drill-txn-table td.r { text-align: right; }
+.drill-txn-table td {
+  padding: 8px 16px; border-bottom: 1px solid var(--border);
+  font-size: 0.8rem; color: var(--text);
+}
+.drill-txn-table tbody tr:last-child td { border-bottom: none; }
+.drill-txn-table tfoot td { font-weight: 500; background: var(--surfaceHigh); border-top: 1px solid var(--border); }
+.drill-txn-table td.r { font-family: 'DM Mono', monospace; white-space: nowrap; }
+.drill-empty { padding: 40px; text-align: center; color: var(--muted); font-size: 0.8rem; }
+
 .kpi-value {
   font-family: 'Fraunces', serif; font-weight: 300; font-size: 1.9rem;
   letter-spacing: -0.02em; line-height: 1;
@@ -568,6 +617,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         const gid   = escH(row.groupId || '');
         const numCells = months.map((_, i) => {
           const v = vals[i] || 0;
+          if (row.accountId && v !== 0) {
+            return `<td class="num drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}">${fmtDollar(v)}</td>`;
+          }
           return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
         }).join('');
         html += `<tr class="t-group-child" data-gid="${gid}">
@@ -589,6 +641,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       const numCells = months.map((_, i) => {
         const v   = vals[i] || 0;
         const cls = numClass(v, row.type);
+        if (row.accountId && v !== 0) {
+          return `<td class="num${cls} drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}">${fmtDollar(v)}</td>`;
+        }
         return `<td class="num${cls}">${fmtDollar(v)}</td>`;
       }).join('');
 
@@ -1018,16 +1073,100 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     }
   };
 
+  // ── Drill-down ─────────────────────────────────────────────────────────────
+  async function openDrill(cell) {
+    const accountId = cell.dataset.accountId;
+    const colIdx    = parseInt(cell.dataset.colIdx, 10);
+    const ranges    = data.monthRanges || [];
+    const range     = ranges[colIdx];
+    if (!accountId || !range) return;
+
+    const tr       = cell.closest('tr');
+    const rowLabel = tr?.querySelector('td:first-child')?.textContent?.trim() || '';
+    const monthLbl = (data.months || [])[colIdx] || '';
+
+    document.getElementById('drillTitle').textContent  = rowLabel;
+    document.getElementById('drillPeriod').textContent = monthLbl;
+    document.getElementById('drillBody').innerHTML     = '<div class="state-msg" style="padding:32px">Loading transactions…</div>';
+    document.getElementById('drillModal').style.display = 'flex';
+
+    try {
+      const params = new URLSearchParams({ accountId, startDate: range.start, endDate: range.end });
+      const resp   = await fetch(`/api/pl-drill?${params}`);
+      if (!resp.ok) {
+        const j = await resp.json().catch(() => ({}));
+        throw new Error(j.detail || j.error || `HTTP ${resp.status}`);
+      }
+      const d = await resp.json();
+      document.getElementById('drillBody').innerHTML = buildDrillTable(d.transactions);
+    } catch (err) {
+      document.getElementById('drillBody').innerHTML =
+        `<div class="state-msg state-error" style="padding:32px">Error: ${escH(err.message)}</div>`;
+    }
+  }
+
+  function buildDrillTable(txns) {
+    if (!txns || !txns.length) {
+      return '<div class="drill-empty">No transactions found for this account and period.</div>';
+    }
+    const total = txns.reduce((s, t) => s + (t.amount || 0), 0);
+    const rows  = txns.map(t => `
+      <tr>
+        <td>${escH(t.date)}</td>
+        <td>${escH(t.type)}</td>
+        <td style="color:var(--muted)">${escH(t.num)}</td>
+        <td>${escH(t.name)}</td>
+        <td style="color:var(--muted);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(t.memo)}</td>
+        <td class="r">${fmtDollar(t.amount)}</td>
+      </tr>`).join('');
+    return `<table class="drill-txn-table">
+      <thead><tr>
+        <th>Date</th><th>Type</th><th>Ref #</th><th>Name</th><th>Memo</th><th class="r">Amount</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr>
+        <td colspan="5">Total</td>
+        <td class="r">${fmtDollar(total)}</td>
+      </tr></tfoot>
+    </table>`;
+  }
+
   // ── Event delegation for collapsible expense groups ───────────────────────
   // inline onclick can't reach functions inside this IIFE; use delegation instead
   document.getElementById('tabContent').addEventListener('click', function (e) {
     const hdr = e.target.closest('tr.t-group-hdr');
-    if (hdr) toggleGroup(hdr);
+    if (hdr) { toggleGroup(hdr); return; }
+    const drillCell = e.target.closest('td.drill-cell');
+    if (drillCell) openDrill(drillCell);
+  });
+
+  document.getElementById('drillClose').addEventListener('click', () => {
+    document.getElementById('drillModal').style.display = 'none';
+  });
+  document.querySelector('#drillModal .drill-backdrop').addEventListener('click', () => {
+    document.getElementById('drillModal').style.display = 'none';
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') document.getElementById('drillModal').style.display = 'none';
   });
 
   // ── Init ───────────────────────────────────────────────────────────────────
   load();
 })();
 </script>
+<!-- ── Drill-down modal ──────────────────────────────────────────────── -->
+<div id="drillModal" class="drill-modal" style="display:none">
+  <div class="drill-backdrop"></div>
+  <div class="drill-panel">
+    <div class="drill-header">
+      <div>
+        <div class="drill-title" id="drillTitle">—</div>
+        <div class="drill-period" id="drillPeriod">—</div>
+      </div>
+      <button class="drill-close" id="drillClose">✕</button>
+    </div>
+    <div class="drill-body" id="drillBody"></div>
+  </div>
+</div>
 </body>
 </html>

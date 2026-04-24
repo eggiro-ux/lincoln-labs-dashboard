@@ -160,12 +160,22 @@ tr.t-group-child td.drill-cell:hover { background: var(--surfaceHigh) !important
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center; padding: 24px;
 }
-.drill-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); cursor: pointer; }
-.drill-panel {
-  position: relative; background: var(--surface); border: 1px solid var(--border);
-  border-radius: 8px; width: 100%; max-width: 860px; max-height: 80vh;
-  display: flex; flex-direction: column; box-shadow: 0 24px 48px rgba(0,0,0,0.4);
+.drill-backdrop {
+  position: absolute; inset: 0; z-index: 1;
+  background: rgba(0, 0, 0, 0.8); cursor: pointer;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
+.drill-panel {
+  position: relative; z-index: 2;
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: 8px;
+  width: 100%; max-width: 860px; max-height: 80vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 24px 48px rgba(0, 0, 0, 0.6);
+  overflow: hidden; /* keeps rounded corners clipping child bg */
+}
+/* light mode override so readability is good in both themes */
+.shell.light .drill-backdrop { background: rgba(0, 0, 0, 0.55); }
 .drill-header {
   display: flex; align-items: flex-start; justify-content: space-between;
   padding: 20px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;

@@ -767,47 +767,77 @@ async function getPlByLabData(req, res) {
   }
 }
 
-async function fetchGeneralLedger(accessToken, realmId, accountId, startDate, endDate) {
+// Fetch the QBO TransactionList report filtered to a single account.
+//
+// We prefer TransactionList over GeneralLedger because:
+//   - GeneralLedger's `account` filter is flaky and often returns opening/closing
+//     balances with zero actual transaction data for parent-vs-child edge cases.
+//   - TransactionList returns a flat list of transactions and accepts a
+//     comma-separated `account` filter matching on account IDs. For a P&L drill
+//     where we want "what transactions compose this dollar amount", this is
+//     exactly the view QBO itself shows when you click a P&L cell.
+async function fetchTransactionList(accessToken, realmId, accountId, startDate, endDate) {
   const env    = process.env.QBO_ENVIRONMENT || 'production';
   const base   = QBO_BASE[env];
-  const params = new URLSearchParams({ account: accountId, start_date: startDate, end_date: endDate });
-  const url    = `${base}/v3/company/${realmId}/reports/GeneralLedger?${params}`;
-  const res    = await axios.get(url, {
+  const params = new URLSearchParams({
+    account:    accountId,
+    start_date: startDate,
+    end_date:   endDate,
+    columns:    'tx_date,txn_type,doc_num,name,memo,account_name,split_acc,subt_nat_amount',
+  });
+  const url = `${base}/v3/company/${realmId}/reports/TransactionList?${params}`;
+  const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
   return res.data;
 }
 
-function parseGLReport(report) {
+// Walk a QBO report's Rows tree and collect every row whose `type === 'Data'`.
+// QBO nests these arbitrarily (Section → Rows → Row → possibly deeper sections),
+// so a recursive flatten is the only safe way to extract every line item.
+function collectDataRows(node, acc) {
+  if (!node) return;
+  if (Array.isArray(node)) { node.forEach(n => collectDataRows(n, acc)); return; }
+  if (node.type === 'Data' && node.ColData) acc.push(node);
+  if (node.Rows?.Row)     collectDataRows(node.Rows.Row, acc);
+  if (node.Row)           collectDataRows(node.Row, acc);
+}
+
+function parseTransactionReport(report) {
   const columns = report.Columns?.Column || [];
   const colIdx  = {};
   columns.forEach((col, i) => { colIdx[col.ColType] = i; });
 
-  const get    = (cols, type) => cols[colIdx[type]]?.value || '';
-  const getId  = (cols, type) => cols[colIdx[type]]?.id    || null;
+  const get = (cols, type) => {
+    const i = colIdx[type];
+    return (i != null && cols[i]) ? (cols[i].value || '') : '';
+  };
+  const getId = (cols, type) => {
+    const i = colIdx[type];
+    return (i != null && cols[i]) ? (cols[i].id || null) : null;
+  };
   const getAmt = (cols) => {
-    const raw = get(cols, 'subt_nat_amount') || get(cols, 'amount');
-    return raw ? parseFloat(raw) : 0;
+    const raw = get(cols, 'subt_nat_amount') || get(cols, 'amount') || get(cols, 'nat_amount');
+    const n   = raw ? parseFloat(raw) : 0;
+    return isNaN(n) ? 0 : n;
   };
 
-  const transactions = [];
-  for (const section of (report.Rows?.Row || [])) {
-    for (const row of (section.Rows?.Row || [])) {
-      if (row.type !== 'Data') continue;
-      const cols = row.ColData || [];
-      transactions.push({
-        date:  get(cols, 'tx_date'),
-        type:  get(cols, 'txn_type'),
-        txnId: getId(cols, 'txn_type'),
-        num:   get(cols, 'doc_num'),
-        name:  get(cols, 'name'),
-        memo:  get(cols, 'memo'),
-        split: get(cols, 'split_acc'),
-        amount: getAmt(cols),
-      });
-    }
-  }
-  return transactions;
+  const dataRows = [];
+  collectDataRows(report.Rows?.Row, dataRows);
+
+  return dataRows.map(row => {
+    const cols = row.ColData || [];
+    return {
+      date:   get(cols, 'tx_date'),
+      type:   get(cols, 'txn_type'),
+      txnId:  getId(cols, 'txn_type'),
+      num:    get(cols, 'doc_num'),
+      name:   get(cols, 'name'),
+      memo:   get(cols, 'memo'),
+      split:  get(cols, 'split_acc') || get(cols, 'account_name'),
+      amount: getAmt(cols),
+    };
+  });
 }
 
 async function getPlDrillData(req, res) {
@@ -816,10 +846,13 @@ async function getPlDrillData(req, res) {
     if (!accountId || !startDate || !endDate) {
       return res.status(400).json({ error: 'accountId, startDate, endDate are required' });
     }
-    const accessToken  = await tokenStore.getAccessToken();
-    const realmId      = tokenStore.getRealmId();
-    const report       = await fetchGeneralLedger(accessToken, realmId, accountId, startDate, endDate);
-    const transactions = parseGLReport(report);
+    const accessToken = await tokenStore.getAccessToken();
+    const realmId     = tokenStore.getRealmId();
+
+    const report       = await fetchTransactionList(accessToken, realmId, accountId, startDate, endDate);
+    const transactions = parseTransactionReport(report);
+
+    console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} → ${transactions.length} txns`);
     res.json({ transactions });
   } catch (err) {
     const qboErr = err.response?.data;

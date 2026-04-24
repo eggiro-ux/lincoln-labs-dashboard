@@ -128,6 +128,27 @@ header {
   margin-bottom: 8px; display: flex; align-items: center; gap: 6px; font-weight: 400;
   color: var(--muted);
 }
+/* ── KPI info tooltip ─────────────────────────────────────────────────────── */
+.kpi-tip {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0;
+  background: var(--border); color: var(--muted);
+  font-size: 0.5rem; font-weight: 700; cursor: default;
+  position: relative; text-transform: none; letter-spacing: 0; line-height: 1;
+}
+.kpi-tip::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 7px); left: 50%;
+  transform: translateX(-50%);
+  background: #111; color: var(--text);
+  border: 1px solid var(--border); padding: 9px 11px; border-radius: 6px;
+  font-size: 0.7rem; line-height: 1.45; font-weight: 400;
+  white-space: normal; width: 230px;
+  opacity: 0; pointer-events: none; transition: opacity 0.15s;
+  z-index: 200;
+  text-transform: none; letter-spacing: 0;
+}
+.kpi-tip:hover::after { opacity: 1; }
 .kpi-value {
   font-family: 'Fraunces', serif; font-weight: 300; font-size: 1.9rem;
   letter-spacing: -0.02em; line-height: 1;
@@ -626,13 +647,18 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
   // ── KPI strip builder ──────────────────────────────────────────────────────
   function buildKPIStrip(kpis) {
-    // kpis: [{label, value, color}]
+    // kpis: [{label, value, color, tooltip?}]
     return `<div class="kpi-strip">
-      ${kpis.map(k => `
+      ${kpis.map(k => {
+        const tip = k.tooltip
+          ? `<span class="kpi-tip" data-tip="${escH(k.tooltip)}">i</span>`
+          : '';
+        return `
         <div class="kpi-card">
-          <div class="kpi-label" style="color:${k.color || 'var(--muted)'}">${escH(k.label)}</div>
+          <div class="kpi-label" style="color:${k.color || 'var(--muted)'}">${escH(k.label)}${tip}</div>
           <div class="kpi-value" style="color:${k.color || 'var(--text)'}">${escH(String(k.value))}</div>
-        </div>`).join('')}
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
@@ -850,10 +876,24 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     </div>`;
 
     const kpiDefs = [
-      { label: 'Untagged Income',       value: fmtKPI(kpis.untaggedIncome),      color: 'var(--muted)' },
-      { label: 'Untagged Expenses',     value: fmtKPI(kpis.untaggedExpenses),    color: 'var(--neg)' },
-      { label: 'Reconciliation Items',  value: fmtKPI(kpis.reconciliationItems), color: 'var(--muted)' },
-      { label: 'Total to Classify',     value: fmtKPI(kpis.totalToClassify),     color: kpis.totalToClassify > 0 ? 'var(--neg)' : 'var(--muted)' },
+      {
+        label: 'Untagged Expenses',
+        value: fmtKPI(kpis.untaggedExpenses),
+        color: 'var(--neg)',
+        tooltip: 'Real business expenses that couldn\'t be automatically matched to a specific lab. Each line item below needs to be manually assigned by updating the matchLab rules.',
+      },
+      {
+        label: 'Reconciliation Items',
+        value: fmtKPI(kpis.reconciliationItems),
+        color: 'var(--muted)',
+        tooltip: 'QuickBooks payment entries and over/short adjustments — accounting artifacts used to balance the books, not real business expenses. These don\'t need lab attribution.',
+      },
+      {
+        label: 'Total to Classify',
+        value: fmtKPI(kpis.totalToClassify),
+        color: kpis.totalToClassify > 0 ? 'var(--neg)' : 'var(--muted)',
+        tooltip: 'Untagged Expenses + Reconciliation Items combined. This is the total dollar amount still needing review before every transaction is fully categorized.',
+      },
     ];
 
     html += buildKPIStrip(kpiDefs);
@@ -866,6 +906,8 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       'Meals & Entertainment': 'Meals & Entertainment',
     }[raw] || raw);
     const slugify = s => (s || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    // Strip redundant "Expenses — " prefix from labels — they're already inside the Untagged Expenses section
+    const cleanExpLabel = lbl => (lbl || '').replace(/^Expenses\s*[—–\-]+\s*/i, '');
     const sumArrays = arrs => {
       if (!arrs.length) return [];
       const len = Math.max(...arrs.map(a => (a || []).length));
@@ -896,7 +938,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
           ungrouped.push(r);
         }
       });
-      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      ungrouped.forEach(r => rows.push({ label: cleanExpLabel(r.label), values: r.values, type: 'row' }));
       for (const [grpName, grpRows] of groupMap) {
         const grpTotal = sumArrays(grpRows.map(r => r.values));
         const grpId    = slugify(grpName);
@@ -904,7 +946,8 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         rows.push({ label: grpLabel, values: grpTotal, type: 'group_header', groupId: grpId });
         grpRows.forEach(r => {
           const useSub = r.subLabel && r.subLabel !== grpName;
-          rows.push({ label: useSub ? r.subLabel : r.label, values: r.values, type: 'group_child', groupId: grpId });
+          const rawLbl = useSub ? r.subLabel : r.label;
+          rows.push({ label: cleanExpLabel(rawLbl), values: r.values, type: 'group_child', groupId: grpId });
         });
       }
       rows.push({ label: 'Total Untagged Expenses', values: sumArrays(expRows.map(r => r.values)), type: 'total_expenses' });

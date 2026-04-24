@@ -276,14 +276,12 @@ function parsePL(pl) {
   function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName) {
     const lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
     if (topSectionType === 'income') {
-      if (lab) {
-        labIncome[lab] = labIncome[lab] || [];
-        labIncome[lab].push({ label: displayLabel, values: vals });
-        if (buRevByMonth[lab]) {
-          for (let i = 0; i < N; i++) buRevByMonth[lab][i] += vals[i];
-        }
-      } else {
-        unassignedIncome.push({ label: displayLabel, values: vals });
+      // Unmatched income defaults to Lincoln Labs (catch-all for misc. company income)
+      const incLab = lab || 'Lincoln Labs';
+      labIncome[incLab] = labIncome[incLab] || [];
+      labIncome[incLab].push({ label: displayLabel, values: vals });
+      if (buRevByMonth[incLab]) {
+        for (let i = 0; i < N; i++) buRevByMonth[incLab][i] += vals[i];
       }
       for (let i = 0; i < N; i++) sumIncome[i] += vals[i];
     } else if (topSectionType === 'cogs') {

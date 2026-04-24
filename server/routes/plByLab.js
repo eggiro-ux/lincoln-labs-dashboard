@@ -131,8 +131,12 @@ function matchLab(text) {
   if (/awesome/.test(t))    return 'AwesomeAPI';
   if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
-  if (/\bkansas\b/.test(t)) return 'Civille';   // Office Rent - Kansas → Civille
+  // Specific rent overrides — must come before the broad /lincoln/ catch
+  if (/lincoln.*rent|rent.*lincoln/.test(t)) return 'Civille'; // LL-labelled rent sub-account → Civille
+  if (/\bkansas\b/.test(t)) return 'Lincoln Labs'; // Office Rent - Kansas → Lincoln Labs
   if (/back.?owed/.test(t)) return 'Lincoln Labs'; // Back-Owed Rent → Lincoln Labs
+  // Truss income override — subletting income is the overseas-office sub-let, belongs with Truss
+  if (/subletting/.test(t)) return 'Truss';
   if (/lincoln/.test(t))    return 'Lincoln Labs';
   if (/overseas/.test(t))   return 'Truss';     // Overseas Rent & Utilities → Truss
   if (/accomplice/.test(t)) return 'Truss';     // Accomplice is a Truss product line

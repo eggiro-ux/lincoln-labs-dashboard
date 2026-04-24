@@ -132,7 +132,7 @@ function matchLab(text) {
   if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
   // Specific rent overrides — must come before the broad /lincoln/ catch
-  if (/lincoln.*rent|rent.*lincoln/.test(t)) return 'Civille'; // LL-labelled rent sub-account → Civille
+  if (/lincoln.*\brent\b|\brent\b.*lincoln/.test(t)) return 'Civille'; // LL-labelled rent sub-account → Civille (word boundary avoids matching "rental")
   if (/\bkansas\b/.test(t)) return 'Lincoln Labs'; // Office Rent - Kansas → Lincoln Labs
   if (/back.?owed/.test(t)) return 'Lincoln Labs'; // Back-Owed Rent → Lincoln Labs
   // Truss income override — subletting income is the overseas-office sub-let, belongs with Truss

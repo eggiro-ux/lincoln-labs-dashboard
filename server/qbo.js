@@ -165,6 +165,21 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
 
   processRows(rows);
 
+  // Capture the Net Income summary row that QBO places at the top level of the P&L.
+  // It appears as a Data row with group="NetIncome" (or a matching label).
+  const monthlyNetIncome = monthCols.map(() => null);
+  for (const row of rows) {
+    const isNetIncome = row.group === 'NetIncome' ||
+      (row.ColData && row.ColData[0]?.value?.toLowerCase().replace(/\s+/g, '').includes('netincome'));
+    if (isNetIncome && row.ColData) {
+      monthCols.forEach((col, i) => {
+        const raw = row.ColData[col.idx + colDataOffset]?.value;
+        if (raw !== undefined) monthlyNetIncome[i] = parseFloat(raw) || 0;
+      });
+      break;
+    }
+  }
+
   const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const fmtLabel = isoDate => {
     if (!isoDate) return null;
@@ -175,6 +190,7 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
   const months = [];
   const seriesArrays = {};
   for (const key of Object.keys(ACCOUNT_MAP)) seriesArrays[key] = [];
+  seriesArrays['net_income'] = [];
 
   monthCols.forEach((col, i) => {
     const label = fmtLabel(col.startDate) || col.label;
@@ -183,6 +199,7 @@ async function getMonthlyData(tokens, realmId, accountingMethod = 'Accrual') {
     for (const key of Object.keys(ACCOUNT_MAP)) {
       seriesArrays[key].push(agg[key] ?? null);
     }
+    seriesArrays['net_income'].push(monthlyNetIncome[i]);
   });
 
   return { months, series: seriesArrays };

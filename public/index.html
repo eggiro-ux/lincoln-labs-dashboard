@@ -817,6 +817,20 @@ function showTooltip(mx, my, i) {
     row.innerHTML = `<span class="tt-label"><span class="tt-dot" style="background:${s.color}"></span>${s.label}</span><span class="tt-val">${fmt(v)}</span>`;
     rows.appendChild(row);
   });
+  if (goalLineSeries && i >= 12) {
+    const s = SERIES_CONFIG.find(s => s.key === goalLineSeries);
+    const priorVal = (displayedSeries[goalLineSeries] || [])[i - 12];
+    if (s && priorVal !== null && priorVal !== undefined) {
+      const goalVal = priorVal * 1.35;
+      const sep = document.createElement('div');
+      sep.style.cssText = 'border-top:1px solid #2a2a27;margin:6px 0 4px';
+      rows.appendChild(sep);
+      const row = document.createElement('div');
+      row.className = 'tt-row';
+      row.innerHTML = `<span class="tt-label"><span style="display:inline-block;width:14px;border-top:2px dashed ${s.color};margin-right:6px;vertical-align:middle;opacity:0.75"></span>${s.label} goal</span><span class="tt-val" style="color:${s.color};opacity:0.85">${fmt(goalVal)}</span>`;
+      rows.appendChild(row);
+    }
+  }
   const tt = document.getElementById('tooltip');
   const ttW = 280;
   let left = mx + 16, top = my - 20;

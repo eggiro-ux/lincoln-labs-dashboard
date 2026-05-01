@@ -230,6 +230,19 @@
             <option value="net_income">Net Income</option>
           </select>
         </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="font-family:'DM Mono',monospace;font-size:0.62rem;color:#7a7870;letter-spacing:0.06em;text-transform:uppercase;">Goal line</span>
+          <select id="goalLineSelect" onchange="setGoalLineSeries(this.value)" style="font-family:'DM Mono',monospace;font-size:0.65rem;background:#191917;color:#7a7870;border:1px solid #2a2a27;padding:5px 8px;cursor:pointer;letter-spacing:0.04em;">
+            <option value="">None</option>
+            <option value="civille">Civille + Phantom</option>
+            <option value="awesomeapi">AwesomeAPI</option>
+            <option value="brash_apps">Brash Apps</option>
+            <option value="truss_total_margin">Total Truss Margin</option>
+            <option value="truss_sal_delta">Truss Salaries</option>
+            <option value="truss_svc_rec">Truss Svc Fees</option>
+            <option value="lincoln_labs">Lincoln Labs Total</option>
+          </select>
+        </div>
         <button id="currentMonthToggle" class="btn" onclick="toggleCurrentMonth()" style="font-size:0.68rem;padding:7px 14px;white-space:nowrap;">Show Current Month</button>
       </div>
     </div>
@@ -317,9 +330,15 @@ let compHidden = new Set(); // independent visibility for the comparison chart
 let hoveredMonth = null;
 let trendData = null;
 let bestFitSeries = '';
+let goalLineSeries = '';
 
 function setBestFitSeries(key) {
   bestFitSeries = key;
+  drawTrendChart();
+}
+
+function setGoalLineSeries(key) {
+  goalLineSeries = key;
   drawTrendChart();
 }
 let periodData = null;
@@ -733,6 +752,33 @@ function drawTrendChart() {
       trendCtx.setLineDash([4, 4]);
       trendCtx.beginPath(); trendCtx.moveTo(x0, y0); trendCtx.lineTo(x1, y1);
       trendCtx.stroke();
+      trendCtx.restore();
+    }
+  }
+
+  // ── Goal line (prior year × 1.35) ─────────────────────────────────────────
+  if (goalLineSeries) {
+    const s = SERIES_CONFIG.find(s => s.key === goalLineSeries);
+    const vals = series[goalLineSeries] || [];
+    if (s && vals.length > 12) {
+      const toY = v => MARGIN.top + plotH - ((v - yMin) / yRange) * plotH;
+      trendCtx.save();
+      trendCtx.globalAlpha = 0.75;
+      trendCtx.strokeStyle = s.color;
+      trendCtx.lineWidth = 1.5;
+      trendCtx.setLineDash([8, 4]);
+      trendCtx.beginPath();
+      let started = false;
+      for (let i = 12; i < n; i++) {
+        const priorVal = vals[i - 12];
+        if (priorVal === null || priorVal === undefined) continue;
+        const goalVal = priorVal * 1.35;
+        const x = MARGIN.left + (i / (n - 1)) * plotW;
+        const y = toY(goalVal);
+        if (!started) { trendCtx.moveTo(x, y); started = true; } else trendCtx.lineTo(x, y);
+      }
+      trendCtx.stroke();
+      trendCtx.setLineDash([]);
       trendCtx.restore();
     }
   }

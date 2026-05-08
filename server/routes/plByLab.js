@@ -639,9 +639,10 @@ function parsePL(pl) {
     const totalExp = sumRows(expRows).reduce((a,b)=>a+b,0);
     const gp       = totalInc - totalCgs;
     const gmPct    = totalInc ? parseFloat((gp / totalInc * 100).toFixed(1)) : null;
-    const netOp    = gp - totalExp;
+    const netOp        = gp - totalExp;
+    const netMarginPct = totalInc ? parseFloat((netOp / totalInc * 100).toFixed(1)) : null;
 
-    return { revenue: totalInc, cogs: totalCgs, grossProfit: gp, gmPct, totalExpenses: totalExp, netOpIncome: netOp };
+    return { revenue: totalInc, cogs: totalCgs, grossProfit: gp, gmPct, totalExpenses: totalExp, netOpIncome: netOp, netMarginPct };
   }
 
   // Truss special KPIs
@@ -652,6 +653,9 @@ function parsePL(pl) {
     const totalCgs    = sumRows(labCOGS['Truss'] || []).reduce((a,b)=>a+b,0);
     const gp          = totalRev - totalCgs;
     const gmPct       = totalRev ? parseFloat((gp / totalRev * 100).toFixed(1)) : null;
+    const totalExp    = sumRows(labExpenses['Truss'] || []).reduce((a,b)=>a+b,0);
+    const netOp       = gp - totalExp;
+    const netMarginPct = totalRev ? parseFloat((netOp / totalRev * 100).toFixed(1)) : null;
     return {
       totalRevenue:    totalRev,
       serviceFeesRev:  serviceFees,
@@ -659,6 +663,9 @@ function parsePL(pl) {
       totalCOGS:       totalCgs,
       grossProfit:     gp,
       gmPct,
+      totalExpenses:   totalExp,
+      netOpIncome:     netOp,
+      netMarginPct,
     };
   }
 

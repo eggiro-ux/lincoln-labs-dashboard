@@ -539,13 +539,13 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const totalRev = sum(s.totalIncome);
     const gp       = sum(s.grossProfit);
     const net      = sum(s.netIncome);
-    const gm       = totalRev ? gp / totalRev * 100 : null;
+    const nm       = totalRev ? net / totalRev * 100 : null;
 
     const pills = [
       { label: 'Total Revenue', value: fmtKPI(totalRev), color: 'var(--action)' },
       { label: 'Gross Profit',  value: fmtKPI(gp),       color: 'var(--action)' },
       { label: 'Net Income',    value: fmtKPI(net),       color: net >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',  value: fmtPct(gm),        color: 'var(--muted)' },
+      { label: 'Net Margin',    value: fmtPct(nm),        color: 'var(--muted)' },
     ];
 
     el.innerHTML = pills.map(p => `
@@ -770,7 +770,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)' },
       { label: 'Total COGS',       value: fmtKPI(totCOGS), color: 'var(--text)' },
       { label: 'Gross Profit',     value: fmtKPI(gp),      color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',     value: fmtPct(gm),      color: 'var(--muted)' },
+      { label: 'Net Margin',       value: fmtPct(totInc ? netInc / totInc * 100 : null), color: 'var(--muted)' },
       { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)' },
       { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];
@@ -904,7 +904,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       { label: 'Revenue',        value: fmtKPI(kpis.revenue),       color },
       { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)' },
       { label: 'Gross Profit',   value: fmtKPI(kpis.grossProfit),   color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',   value: fmtPct(kpis.gmPct),         color: 'var(--muted)' },
+      { label: 'Net Margin',     value: fmtPct(kpis.netMarginPct),  color: 'var(--muted)' },
       { label: 'Total Expenses', value: fmtKPI(kpis.totalExpenses), color: 'var(--text)' },
       { label: 'Net Income (Est.)', value: fmtKPI(kpis.netOpIncome), color: kpis.netOpIncome >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];
@@ -935,7 +935,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       { label: 'Pass-Through Rev',   value: fmtKPI(kpis.passThroughRev),  color: 'var(--muted)' },
       { label: 'Total COGS',         value: fmtKPI(kpis.totalCOGS),       color: 'var(--text)' },
       { label: 'Gross Profit',       value: fmtKPI(kpis.grossProfit),      color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Gross Margin',       value: fmtPct(kpis.gmPct),            color: 'var(--muted)' },
+      { label: 'Net Margin',         value: fmtPct(kpis.netMarginPct),     color: 'var(--muted)' },
     ];
 
     let html = buildKPIStrip(kpiDefs);

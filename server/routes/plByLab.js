@@ -531,23 +531,40 @@ function parsePL(pl) {
   const awesomeRev        = sumRows(labIncome['AwesomeAPI'] || []);
   const appsRev           = sumRows(labIncome['Apps'] || []);
   const llRev             = sumRows(labIncome['Lincoln Labs'] || []);
-  const otherRev          = sumRows(unassignedIncome);
-  const otherRevTotal     = otherRev.reduce((a, b) => a + b, 0);
-  const unassignedNetIncome = otherRevTotal - unassignedExpForBU;
+  const otherRev      = sumRows(unassignedIncome);
+  const otherRevTotal = otherRev.reduce((a, b) => a + b, 0);
+
+  // Build the five named lab rows first so we can compute the true catch-all residual.
+  const civBU     = makeRevRow('Civille', civilleRev, labCOGS['Civille'] || [], labExpenses['Civille'] || []);
+  const trussBU   = { name: 'Truss', monthRevenue: trussEconRevMo, totalRevenue: trussEconRevTotal,
+                      totalCOGS: 0, grossProfit: trussEconRevTotal, gmPct: null,
+                      totalExpenses: trussBUExpTotal, netIncome: trussBUNetIncome, netMarginPct: trussBUMarginPct };
+  const awesomeBU = makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []);
+  const appsBU    = makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []);
+  const llBU      = makeRevRow('Lincoln Labs Co.', llRev, labCOGS['Lincoln Labs'] || [], labExpenses['Lincoln Labs'] || []);
+
+  // Unassigned / Other is a true catch-all: its net income = total P&L net income minus
+  // the sum of the five named labs. This ensures the BU table always reconciles to the
+  // actual P&L bottom line, capturing exchange gain/loss and any other items that don't
+  // map cleanly to a specific lab.
+  const totalPLNetIncome   = netIncome.reduce((a, b) => a + b, 0);
+  const fiveLabsNetIncome  = civBU.netIncome + trussBU.netIncome + awesomeBU.netIncome
+                           + appsBU.netIncome + llBU.netIncome;
+  const unassignedResidual = totalPLNetIncome - fiveLabsNetIncome;
+  const unassignedResidualMarginPct = otherRevTotal
+    ? parseFloat((unassignedResidual / otherRevTotal * 100).toFixed(1)) : null;
 
   const buRows = [
-    makeRevRow('Civille', civilleRev, labCOGS['Civille'] || [], labExpenses['Civille'] || []),
-    { name: 'Truss', monthRevenue: trussEconRevMo, totalRevenue: trussEconRevTotal,
-      totalCOGS: 0, grossProfit: trussEconRevTotal, gmPct: null,
-      totalExpenses: trussBUExpTotal, netIncome: trussBUNetIncome, netMarginPct: trussBUMarginPct },
-    makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []),
-    makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []),
-    makeRevRow('Lincoln Labs Co.', llRev, labCOGS['Lincoln Labs'] || [], labExpenses['Lincoln Labs'] || []),
+    civBU,
+    trussBU,
+    awesomeBU,
+    appsBU,
+    llBU,
     { name: 'Unassigned / Other', monthRevenue: otherRev, totalRevenue: otherRevTotal,
       totalCOGS: 0, grossProfit: otherRevTotal, gmPct: null,
       totalExpenses: unassignedExpForBU,
-      netIncome: unassignedNetIncome,
-      netMarginPct: otherRevTotal ? parseFloat((unassignedNetIncome / otherRevTotal * 100).toFixed(1)) : null,
+      netIncome: unassignedResidual,
+      netMarginPct: unassignedResidualMarginPct,
       isOther: true },
   ];
 

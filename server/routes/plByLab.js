@@ -907,25 +907,29 @@ async function getPlByLabData(req, res) {
   }
 }
 
-// Fetch the QBO TransactionList report filtered to a single account.
+// Fetch the QBO ProfitAndLossDetail report filtered to a single account.
 //
-// We prefer TransactionList over GeneralLedger because:
-//   - GeneralLedger's `account` filter is flaky and often returns opening/closing
-//     balances with zero actual transaction data for parent-vs-child edge cases.
-//   - TransactionList returns a flat list of transactions and accepts a
-//     comma-separated `account` filter matching on account IDs. For a P&L drill
-//     where we want "what transactions compose this dollar amount", this is
-//     exactly the view QBO itself shows when you click a P&L cell.
-async function fetchTransactionList(accessToken, realmId, accountId, startDate, endDate) {
+// ProfitAndLossDetail is the report QBO itself renders when you click a P&L
+// cell, and it's the only detail report here that actually supports what the
+// drill needs (verified against Intuit's API reference 2026-07-07):
+//   - `account` filter: comma-separated account IDs. TransactionList silently
+//     IGNORES an `account` param (it isn't in its parameter list), which is why
+//     the old drill showed every company transaction in the period.
+//   - `accounting_method`: the drill must match the basis the P&L was run on
+//     or Cash-basis cells never reconcile. TransactionList has no such param.
+//   - Amount column: TransactionList doesn't support `subt_nat_amount`, so
+//     amounts came back blank. ProfitAndLossDetail returns it.
+async function fetchPLDetail(accessToken, realmId, accountId, startDate, endDate, accountingMethod) {
   const env    = process.env.QBO_ENVIRONMENT || 'production';
   const base   = QBO_BASE[env];
   const params = new URLSearchParams({
-    account:    accountId,
-    start_date: startDate,
-    end_date:   endDate,
-    columns:    'tx_date,txn_type,doc_num,name,memo,account_name,split_acc,subt_nat_amount',
+    account:           accountId,
+    start_date:        startDate,
+    end_date:          endDate,
+    accounting_method: accountingMethod,
+    columns:           'tx_date,txn_type,doc_num,name,memo,split_acc,subt_nat_amount',
   });
-  const url = `${base}/v3/company/${realmId}/reports/TransactionList?${params}`;
+  const url = `${base}/v3/company/${realmId}/reports/ProfitAndLossDetail?${params}`;
   const res = await axios.get(url, {
     headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
   });
@@ -943,10 +947,33 @@ function collectDataRows(node, acc) {
   if (node.Row)           collectDataRows(node.Row, acc);
 }
 
+// Column headers QBO uses when neither ColKey metadata nor a key-style ColType
+// is present (some report variants return generic ColTypes like "String").
+const COL_TITLE_TO_KEY = {
+  'date':             'tx_date',
+  'transaction type': 'txn_type',
+  'num':              'doc_num',
+  'no.':              'doc_num',
+  'name':             'name',
+  'memo/description': 'memo',
+  'memo':             'memo',
+  'split':            'split_acc',
+  'account':          'account_name',
+  'amount':           'subt_nat_amount',
+};
+
 function parseTransactionReport(report) {
   const columns = report.Columns?.Column || [];
   const colIdx  = {};
-  columns.forEach((col, i) => { colIdx[col.ColType] = i; });
+  // Resolve each column to a canonical key — prefer ColKey metadata (QBO's
+  // unambiguous id), then ColType, then the human title. First match wins.
+  columns.forEach((col, i) => {
+    const metaKey  = ((col.MetaData || []).find(m => m.Name === 'ColKey') || {}).Value;
+    const titleKey = COL_TITLE_TO_KEY[(col.ColTitle || '').trim().toLowerCase()];
+    for (const key of [metaKey, col.ColType, titleKey]) {
+      if (key && colIdx[key] == null) colIdx[key] = i;
+    }
+  });
 
   const get = (cols, type) => {
     const i = colIdx[type];
@@ -957,7 +984,7 @@ function parseTransactionReport(report) {
     return (i != null && cols[i]) ? (cols[i].id || null) : null;
   };
   const getAmt = (cols) => {
-    const raw = get(cols, 'subt_nat_amount') || get(cols, 'amount') || get(cols, 'nat_amount');
+    const raw = get(cols, 'subt_nat_amount') || get(cols, 'subt_nat_home_amount') || get(cols, 'amount') || get(cols, 'nat_amount');
     const n   = raw ? parseFloat(raw) : 0;
     return isNaN(n) ? 0 : n;
   };
@@ -970,7 +997,7 @@ function parseTransactionReport(report) {
     return {
       date:   get(cols, 'tx_date'),
       type:   get(cols, 'txn_type'),
-      txnId:  getId(cols, 'txn_type'),
+      txnId:  getId(cols, 'txn_type') || getId(cols, 'tx_date'),
       num:    get(cols, 'doc_num'),
       name:   get(cols, 'name'),
       memo:   get(cols, 'memo'),
@@ -986,13 +1013,14 @@ async function getPlDrillData(req, res) {
     if (!accountId || !startDate || !endDate) {
       return res.status(400).json({ error: 'accountId, startDate, endDate are required' });
     }
+    const am          = req.query.accountingMethod === 'Cash' ? 'Cash' : 'Accrual';
     const accessToken = await tokenStore.getAccessToken();
     const realmId     = tokenStore.getRealmId();
 
-    const report       = await fetchTransactionList(accessToken, realmId, accountId, startDate, endDate);
+    const report       = await fetchPLDetail(accessToken, realmId, accountId, startDate, endDate, am);
     const transactions = parseTransactionReport(report);
 
-    console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} → ${transactions.length} txns`);
+    console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am} → ${transactions.length} txns`);
     res.json({ transactions });
   } catch (err) {
     const qboErr = err.response?.data;

@@ -643,7 +643,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         const numCells = months.map((_, i) => {
           const v = vals[i] || 0;
           if (row.accountId && v !== 0) {
-            return `<td class="num drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}">${fmtDollar(v)}</td>`;
+            return `<td class="num drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
           }
           return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
         }).join('');
@@ -667,7 +667,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         const v   = vals[i] || 0;
         const cls = numClass(v, row.type);
         if (row.accountId && v !== 0) {
-          return `<td class="num${cls} drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}">${fmtDollar(v)}</td>`;
+          return `<td class="num${cls} drill-cell" data-account-id="${escH(row.accountId)}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
         }
         return `<td class="num${cls}">${fmtDollar(v)}</td>`;
       }).join('');
@@ -1002,7 +1002,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const incRows = u.incomeRows || [];
     if (incRows.length > 0) {
       rows.push({ label: 'UNTAGGED INCOME', type: 'section_header' });
-      incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row' }));
+      incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
       rows.push({ label: 'Total Untagged Income', values: sumArrays(incRows.map(r => r.values)), type: 'total_income' });
     }
     const expRows = u.expenseRows || [];
@@ -1019,7 +1019,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
           ungrouped.push(r);
         }
       });
-      ungrouped.forEach(r => rows.push({ label: cleanExpLabel(r.label), values: r.values, type: 'row' }));
+      ungrouped.forEach(r => rows.push({ label: cleanExpLabel(r.label), values: r.values, type: 'row', accountId: r.accountId }));
       for (const [grpName, grpRows] of groupMap) {
         const grpTotal = sumArrays(grpRows.map(r => r.values));
         const grpId    = slugify(grpName);
@@ -1028,7 +1028,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         grpRows.forEach(r => {
           const useSub = r.subLabel && r.subLabel !== grpName;
           const rawLbl = useSub ? r.subLabel : r.label;
-          rows.push({ label: cleanExpLabel(rawLbl), values: r.values, type: 'group_child', groupId: grpId });
+          rows.push({ label: cleanExpLabel(rawLbl), values: r.values, type: 'group_child', groupId: grpId, accountId: r.accountId });
         });
       }
       rows.push({ label: 'Total Untagged Expenses', values: sumArrays(expRows.map(r => r.values)), type: 'total_expenses' });
@@ -1115,22 +1115,29 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     document.getElementById('drillBody').innerHTML     = '<div class="state-msg" style="padding:32px">Loading transactions…</div>';
     document.getElementById('drillModal').style.display = 'flex';
 
+    const expected = parseFloat(cell.dataset.amount);
+
     try {
-      const params = new URLSearchParams({ accountId, startDate: range.start, endDate: range.end });
-      const resp   = await fetch(`/api/pl-drill?${params}`);
+      const params = new URLSearchParams({
+        accountId,
+        startDate: range.start,
+        endDate:   range.end,
+        accountingMethod: am,
+      });
+      const resp = await fetch(`/api/pl-drill?${params}`);
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({}));
         throw new Error(j.detail || j.error || `HTTP ${resp.status}`);
       }
       const d = await resp.json();
-      document.getElementById('drillBody').innerHTML = buildDrillTable(d.transactions);
+      document.getElementById('drillBody').innerHTML = buildDrillTable(d.transactions, expected);
     } catch (err) {
       document.getElementById('drillBody').innerHTML =
         `<div class="state-msg state-error" style="padding:32px">Error: ${escH(err.message)}</div>`;
     }
   }
 
-  function buildDrillTable(txns) {
+  function buildDrillTable(txns, expected) {
     if (!txns || !txns.length) {
       return '<div class="drill-empty">No transactions found for this account and period.</div>';
     }
@@ -1144,6 +1151,21 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <td style="color:var(--muted);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(t.memo)}</td>
         <td class="r">${fmtDollar(t.amount)}</td>
       </tr>`).join('');
+
+    // The P&L shows income and expenses as positive magnitudes, so compare on
+    // absolute value. A residual difference means this P&L line shows only part
+    // of the QBO account (e.g. Truss Service Fees with Forex Currency Fee
+    // broken out to its own line) — flag it rather than leave a silent mismatch.
+    let note = '';
+    if (expected != null && !isNaN(expected) && Math.abs(Math.abs(total) - Math.abs(expected)) > 0.5) {
+      note = `<tr>
+        <td colspan="6" style="font-weight:400;font-size:0.72rem;color:var(--muted);font-style:italic">
+          Transactions total ${fmtDollar(total)} vs ${fmtDollar(expected)} on the P&amp;L line —
+          this line reflects part of a QuickBooks account that is split across multiple P&amp;L rows.
+        </td>
+      </tr>`;
+    }
+
     return `<table class="drill-txn-table">
       <thead><tr>
         <th>Date</th><th>Type</th><th>Ref #</th><th>Name</th><th>Memo</th><th class="r">Amount</th>
@@ -1152,7 +1174,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <tfoot><tr>
         <td colspan="5">Total</td>
         <td class="r">${fmtDollar(total)}</td>
-      </tr></tfoot>
+      </tr>${note}</tfoot>
     </table>`;
   }
 

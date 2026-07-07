@@ -944,12 +944,21 @@ async function fetchPLDetail(accessToken, realmId, accountId, startDate, endDate
 // Walk a QBO report's Rows tree and collect every row whose `type === 'Data'`.
 // QBO nests these arbitrarily (Section → Rows → Row → possibly deeper sections),
 // so a recursive flatten is the only safe way to extract every line item.
-function collectDataRows(node, acc) {
+//
+// When accountId is given, sections headed by a DIFFERENT account are skipped:
+// PLDetail's `account` filter includes sub-accounts (e.g. account=Civille also
+// returns a "Phantom Copy" section), but the P&L row being drilled shows only
+// the parent's own postings — including children would overstate the total.
+// Structural sections ("Income", "Ordinary Income/Expenses") carry no id and
+// are always traversed.
+function collectDataRows(node, acc, accountId) {
   if (!node) return;
-  if (Array.isArray(node)) { node.forEach(n => collectDataRows(n, acc)); return; }
+  if (Array.isArray(node)) { node.forEach(n => collectDataRows(n, acc, accountId)); return; }
+  const hdrId = node.Header?.ColData?.[0]?.id;
+  if (accountId && hdrId && String(hdrId) !== String(accountId)) return;
   if (node.type === 'Data' && node.ColData) acc.push(node);
-  if (node.Rows?.Row)     collectDataRows(node.Rows.Row, acc);
-  if (node.Row)           collectDataRows(node.Row, acc);
+  if (node.Rows?.Row)     collectDataRows(node.Rows.Row, acc, accountId);
+  if (node.Row)           collectDataRows(node.Row, acc, accountId);
 }
 
 // Column headers QBO uses when neither ColKey metadata nor a key-style ColType
@@ -967,7 +976,7 @@ const COL_TITLE_TO_KEY = {
   'amount':           'subt_nat_amount',
 };
 
-function parseTransactionReport(report) {
+function parseTransactionReport(report, accountId) {
   const columns = report.Columns?.Column || [];
   const colIdx  = {};
   // Resolve each column to a canonical key — prefer ColKey metadata (QBO's
@@ -995,7 +1004,7 @@ function parseTransactionReport(report) {
   };
 
   const dataRows = [];
-  collectDataRows(report.Rows?.Row, dataRows);
+  collectDataRows(report.Rows?.Row, dataRows, accountId);
 
   return dataRows.map(row => {
     const cols = row.ColData || [];
@@ -1026,7 +1035,7 @@ async function getPlDrillData(req, res) {
     // Debug escape hatch (auth-gated like the rest of the route): return the
     // raw QBO report so column-encoding surprises can be diagnosed in prod.
     if (req.query.raw === '1') return res.json(report);
-    const transactions = parseTransactionReport(report);
+    const transactions = parseTransactionReport(report, accountId);
 
     console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am} → ${transactions.length} txns`);
     res.json({ transactions });

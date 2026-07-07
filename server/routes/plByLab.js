@@ -136,7 +136,9 @@ const FOREX_ITEM_NAME = 'forex currency fee';
 // sub-items, so both shapes are handled.
 function extractForexAmount(report) {
   const cols = report.Columns?.Column || [];
-  let amtIdx = cols.findIndex(c => (c.ColTitle || '').toLowerCase() === 'amount');
+  let amtIdx = cols.findIndex(c => (c.ColTitle || '').trim().toLowerCase() === 'amount');
+  if (amtIdx === -1) amtIdx = cols.findIndex(c => (c.ColTitle || '').trim().toLowerCase().includes('amount'));
+  if (amtIdx === -1) amtIdx = cols.findIndex(c => (c.ColType || '').toLowerCase() === 'amount');
   if (amtIdx === -1) amtIdx = cols.findIndex(c => c.ColType === 'Money');
   if (amtIdx === -1) return 0;
 
@@ -151,7 +153,13 @@ function extractForexAmount(report) {
       const colData = node.type === 'Section'
         ? (node.Summary?.ColData || node.Header?.ColData || [])
         : (node.ColData || []);
-      const v = parseFloat(colData[amtIdx]?.value || '0');
+      // QBO sometimes omits the leading item-name column from Columns metadata
+      // while ColData still starts with the name — every index then shifts by
+      // one (the same quirk parsePL's colDataOffset handles). Align per row:
+      // reading the wrong column here once showed Qty (7.28) as the dollar
+      // amount instead of $25,424.
+      const offset = Math.max(0, colData.length - cols.length);
+      const v = parseFloat(colData[amtIdx + offset]?.value || '0');
       if (!isNaN(v)) amount += v;
       return; // Section summary already includes children — don't recurse
     }

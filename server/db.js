@@ -95,4 +95,4 @@ async function clearTokenRow() {
   await pool.query("DELETE FROM tokens WHERE id = 'default'");
 }
 
-module.exports = { ensureTable, loadTokenRow, saveTokenRow, clearTokenRow };
+module.exports = { getPool, ensureTable, loadTokenRow, saveTokenRow, clearTokenRow };

@@ -34,7 +34,19 @@ app.get('/health', (req, res) => res.sendStatus(200));
 //   1. Dashboard password gate (req.session.dashboardAuthed)
 //   2. OAuth CSRF state during QBO connect flow (req.session.oauthState)
 // QBO tokens are NOT stored per-session — they live in the shared tokenStore.
+//
+// Persist sessions in Postgres (same DATABASE_URL pool as tokenStore) so
+// dashboard logins survive Railway deploys. Without DATABASE_URL (local dev)
+// this falls back to the in-memory store, where sessions die with the process.
+const PgSessionStore = require('connect-pg-simple')(session);
+const sessionPool    = require('./db').getPool();
+if (!sessionPool) {
+  console.warn('[session] DATABASE_URL not set — sessions are in-memory and reset on restart.');
+}
 app.use(session({
+  store: sessionPool
+    ? new PgSessionStore({ pool: sessionPool, createTableIfMissing: true })
+    : undefined,
   secret: process.env.SESSION_SECRET || 'dev-secret-change-me',
   resave: false,
   saveUninitialized: false,

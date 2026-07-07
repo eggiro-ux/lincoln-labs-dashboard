@@ -123,6 +123,91 @@ async function fetchTotalPL(accessToken, realmId, startDate, endDate, accounting
   return res.data;
 }
 
+// ── Forex Currency Fee item split ─────────────────────────────────────────────
+// "Forex Currency Fee" is a product/service ITEM that posts into the
+// "Truss Service Fees" income ACCOUNT, so the account-level P&L lumps it in.
+// The Truss lab-specific view breaks it out as its own income line by pulling
+// item-level sales from the ItemSales report (one call per month) and
+// subtracting from the service-fees row. Consolidated views stay account-level.
+const FOREX_ITEM_NAME = 'forex currency fee';
+
+// Find the item's amount in one ItemSales report. The item usually appears as a
+// Data row, but QBO renders it as a Section (Header + Summary) if it ever has
+// sub-items, so both shapes are handled.
+function extractForexAmount(report) {
+  const cols = report.Columns?.Column || [];
+  let amtIdx = cols.findIndex(c => (c.ColTitle || '').toLowerCase() === 'amount');
+  if (amtIdx === -1) amtIdx = cols.findIndex(c => c.ColType === 'Money');
+  if (amtIdx === -1) return 0;
+
+  let amount = 0;
+  (function walk(node) {
+    if (!node) return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    const name = (node.type === 'Section'
+      ? node.Header?.ColData?.[0]?.value
+      : node.ColData?.[0]?.value) || '';
+    if (name.trim().toLowerCase() === FOREX_ITEM_NAME) {
+      const colData = node.type === 'Section'
+        ? (node.Summary?.ColData || node.Header?.ColData || [])
+        : (node.ColData || []);
+      const v = parseFloat(colData[amtIdx]?.value || '0');
+      if (!isNaN(v)) amount += v;
+      return; // Section summary already includes children — don't recurse
+    }
+    if (node.Rows?.Row) walk(node.Rows.Row);
+    if (node.Row)       walk(node.Row);
+  })(report.Rows?.Row);
+
+  return amount;
+}
+
+// One ItemSales call per report month (the month-summarized variant interleaves
+// Qty/Amount/% sub-columns per month, which is much harder to parse reliably).
+// Returns { 'YYYY-MM': amount }.
+async function fetchForexFeeByMonth(accessToken, realmId, months, accountingMethod) {
+  const env  = process.env.QBO_ENVIRONMENT || 'production';
+  const base = QBO_BASE[env];
+
+  const results = await Promise.all(months.map(async (m) => {
+    const params = new URLSearchParams({
+      start_date:        m.start,
+      end_date:          m.end,
+      accounting_method: accountingMethod,
+    });
+    const url = `${base}/v3/company/${realmId}/reports/ItemSales?${params}`;
+    const res = await axios.get(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    return { key: m.start.substring(0, 7), amount: extractForexAmount(res.data) };
+  }));
+
+  const byMonth = {};
+  results.forEach(r => { byMonth[r.key] = r.amount; });
+  return byMonth;
+}
+
+// Split the Forex amounts out of the Truss Service Fees row in the Truss
+// lab-specific rows. Zero-sum: Total Income, KPIs, buRows, and the
+// consolidated fullPLRows are unaffected.
+function breakOutForexRow(trussLab, monthRanges, forexByMonth) {
+  const rows = trussLab?.rows;
+  if (!rows) return;
+
+  const forexVals = monthRanges.map(r => forexByMonth[r.start.substring(0, 7)] || 0);
+  if (!forexVals.some(v => v !== 0)) return;
+
+  const idx = rows.findIndex(r =>
+    r.type === 'row' && (r.label || '').toLowerCase().includes('truss service fees'));
+  if (idx === -1) return;
+
+  const svcRow = rows[idx];
+  // svcRow.values is shared with fullPLRows — replace, never mutate in place
+  rows[idx] = { ...svcRow, values: svcRow.values.map((v, i) => v - forexVals[i]) };
+  // No accountId: this line is item-level, so the account drill doesn't apply
+  rows.splice(idx + 1, 0, { label: 'Forex Currency Fee', values: forexVals, type: 'row' });
+}
+
 // ── Lab matching ──────────────────────────────────────────────────────────────
 // Phantom Copy is a sub-account of Civille — rolls up into Civille.
 function matchLab(text) {
@@ -764,8 +849,17 @@ async function getPlByLabData(req, res) {
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 
-    const pl = await fetchTotalPL(accessToken, realmId, startDate, endDate, am);
+    const [pl, forexByMonth] = await Promise.all([
+      fetchTotalPL(accessToken, realmId, startDate, endDate, am),
+      // Forex breakout is a nice-to-have — never let it sink the whole P&L
+      fetchForexFeeByMonth(accessToken, realmId, months, am).catch(err => {
+        console.error('/api/pl-by-lab ItemSales (Forex) fetch failed:', err.response?.data || err.message);
+        return null;
+      }),
+    ]);
     const { summary, buRows, fullPLRows, labs, unassigned, monthRanges } = parsePL(pl);
+
+    if (forexByMonth) breakOutForexRow(labs['Truss'], monthRanges, forexByMonth);
 
     const partialMonths = months.reduce((acc, m, i) => { if (m.partial) acc.push(i); return acc; }, []);
 

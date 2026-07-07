@@ -221,6 +221,30 @@ app.use('/api', marketingRouter);
 app.get('/api/pl-by-lab', requireDashboardAuth, requireQBO, getPlByLabData);
 app.get('/api/pl-drill', requireDashboardAuth, requireQBO, getPlDrillData);
 
+// TEMP: raw ItemSales passthrough to diagnose the Forex breakout parser.
+// Remove once the column layout is confirmed.
+app.get('/api/debug-itemsales', requireDashboardAuth, requireQBO, async (req, res) => {
+  try {
+    const axios = require('axios');
+    const accessToken = await tokenStore.getAccessToken();
+    const realmId     = tokenStore.getRealmId();
+    const base = (process.env.QBO_ENVIRONMENT || 'production') === 'sandbox'
+      ? 'https://sandbox-quickbooks.api.intuit.com'
+      : 'https://quickbooks.api.intuit.com';
+    const params = new URLSearchParams({
+      start_date:        req.query.start || '2026-06-01',
+      end_date:          req.query.end   || '2026-06-30',
+      accounting_method: req.query.accounting_method || 'Accrual',
+    });
+    const r = await axios.get(`${base}/v3/company/${realmId}/reports/ItemSales?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' },
+    });
+    res.json(r.data);
+  } catch (e) {
+    res.status(500).json({ error: e.message, qbo: e.response?.data || null });
+  }
+});
+
 // ─── Page routes (must be before catch-all) ───────────────────────────────────
 app.get('/pl-by-lab', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/pl-by-lab.html'));

@@ -1017,7 +1017,10 @@ async function getPlDrillData(req, res) {
     const accessToken = await tokenStore.getAccessToken();
     const realmId     = tokenStore.getRealmId();
 
-    const report       = await fetchPLDetail(accessToken, realmId, accountId, startDate, endDate, am);
+    const report = await fetchPLDetail(accessToken, realmId, accountId, startDate, endDate, am);
+    // Debug escape hatch (auth-gated like the rest of the route): return the
+    // raw QBO report so column-encoding surprises can be diagnosed in prod.
+    if (req.query.raw === '1') return res.json(report);
     const transactions = parseTransactionReport(report);
 
     console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am} → ${transactions.length} txns`);

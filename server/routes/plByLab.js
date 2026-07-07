@@ -922,12 +922,17 @@ async function getPlByLabData(req, res) {
 async function fetchPLDetail(accessToken, realmId, accountId, startDate, endDate, accountingMethod) {
   const env    = process.env.QBO_ENVIRONMENT || 'production';
   const base   = QBO_BASE[env];
+  // No `columns` param: QBO validates the list and silently DROPS anything it
+  // doesn't recognize — and despite Intuit's own docs showing subt_nat_amount
+  // in a sample query, PLDetail rejects it, returning a report with no amount
+  // column at all (verified against prod 2026-07-07). The default column set
+  // (Date, Transaction Type, Num, Name, Memo, Split, Amount, Balance) has
+  // everything the drill needs.
   const params = new URLSearchParams({
     account:           accountId,
     start_date:        startDate,
     end_date:          endDate,
     accounting_method: accountingMethod,
-    columns:           'tx_date,txn_type,doc_num,name,memo,split_acc,subt_nat_amount',
   });
   const url = `${base}/v3/company/${realmId}/reports/ProfitAndLossDetail?${params}`;
   const res = await axios.get(url, {

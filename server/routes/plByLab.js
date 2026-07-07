@@ -131,15 +131,29 @@ async function fetchTotalPL(accessToken, realmId, startDate, endDate, accounting
 // subtracting from the service-fees row. Consolidated views stay account-level.
 const FOREX_ITEM_NAME = 'forex currency fee';
 
+// QBO's ItemSales response nests the per-metric sub-columns (Quantity, Amount,
+// % of Sales, Avg Price, COGS, …) inside a parent "Total" column, while each
+// row's ColData holds all the values flat. Flatten the column tree so indexes
+// line up with ColData. (Live response verified 2026-07-07: 2 top-level
+// columns wrapping 7 sub-columns vs 8 flat ColData entries per row.)
+function flattenColumns(colList, out = []) {
+  for (const c of (colList || [])) {
+    if (c.Columns?.Column) flattenColumns(c.Columns.Column, out);
+    else out.push(c);
+  }
+  return out;
+}
+
 // Find the item's amount in one ItemSales report. The item usually appears as a
 // Data row, but QBO renders it as a Section (Header + Summary) if it ever has
 // sub-items, so both shapes are handled.
 function extractForexAmount(report) {
-  const cols = report.Columns?.Column || [];
-  let amtIdx = cols.findIndex(c => (c.ColTitle || '').trim().toLowerCase() === 'amount');
+  const cols = flattenColumns(report.Columns?.Column);
+  const colKey = c => ((c.MetaData || []).find(m => m.Name === 'ColKey') || {}).Value || '';
+  // ColKey metadata is QBO's unambiguous column id; titles are the fallback
+  let amtIdx = cols.findIndex(c => colKey(c) === 'Amount');
+  if (amtIdx === -1) amtIdx = cols.findIndex(c => (c.ColTitle || '').trim().toLowerCase() === 'amount');
   if (amtIdx === -1) amtIdx = cols.findIndex(c => (c.ColTitle || '').trim().toLowerCase().includes('amount'));
-  if (amtIdx === -1) amtIdx = cols.findIndex(c => (c.ColType || '').toLowerCase() === 'amount');
-  if (amtIdx === -1) amtIdx = cols.findIndex(c => c.ColType === 'Money');
   if (amtIdx === -1) return 0;
 
   let amount = 0;

@@ -594,6 +594,21 @@ const TXN_REALLOCATIONS = [
     memoMatch: /uzbekistan|georgia/i,
     targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan & Georgia payroll (from Offshore Labor)' }],
   },
+  {
+    // Suan Galibert is part of Hoopman's distributions — same 25/25/25/20/5
+    // split as the onshore_contractors rule (per Eric 2026-07-10).
+    id:        'offshore_suan',
+    accountId: '82',
+    memoMatch: /suan|galibert/i,
+    nameMatch: /suan|galibert/i,
+    targets: [
+      { lab: 'Truss',        share: 0.25, label: 'Suan Galibert — 25% Truss share (from Offshore Labor)' },
+      { lab: 'Civille',      share: 0.25, label: 'Suan Galibert — 25% Civille share (from Offshore Labor)' },
+      { lab: 'AwesomeAPI',   share: 0.25, label: 'Suan Galibert — 25% AwesomeAPI share (from Offshore Labor)' },
+      { lab: 'Lincoln Labs', share: 0.20, label: 'Suan Galibert — 20% share (from Offshore Labor)' },
+      { lab: 'Apps',         share: 0.05, label: 'Suan Galibert — 5% Apps share (from Offshore Labor)' },
+    ],
+  },
 ];
 
 // ── Whole-account lab overrides ───────────────────────────────────────────────

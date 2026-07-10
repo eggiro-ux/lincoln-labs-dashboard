@@ -478,6 +478,16 @@ const TXN_REALLOCATIONS = [
   },
 ];
 
+// ── Whole-account lab overrides ───────────────────────────────────────────────
+// Accounts that belong 100% to one lab regardless of what their name implies.
+// Checked before matchLab, so these win over the name-based rules (the rent
+// accounts would otherwise route to Lincoln Labs). Per Eric 2026-07-10.
+const ACCOUNT_LAB = {
+  '98':         'Truss',    // Legal & Professional — Lincoln Labs sub-account
+  '1150040022': 'Civille',  // Rent — Back-Owed Rent
+  '1150040029': 'Civille',  // Rent — Office Rent - Kansas
+};
+
 // ── Whole-account splits ──────────────────────────────────────────────────────
 // Accounts whose ENTIRE balance divides across labs by fixed shares (no memo
 // matching needed, so no extra QBO fetch — the split applies directly to the
@@ -731,7 +741,8 @@ function parsePL(pl, reallocByAccount) {
   // topSectionType: 'income' | 'cogs' | 'expenses'
   // Route a data row (label + values) into the correct lab bucket.
   function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName, accountId) {
-    const lab = matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
+    const lab = (accountId && ACCOUNT_LAB[String(accountId)])
+      || matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
     if (topSectionType === 'income') {
       // Unmatched income defaults to Lincoln Labs (catch-all for misc. company income)
       const incLab = lab || 'Lincoln Labs';

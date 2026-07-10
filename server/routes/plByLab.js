@@ -344,6 +344,20 @@ const TXN_REALLOCATIONS = [
     targets:   [{ lab: 'Civille', share: 1, label: 'Figma (from Lincoln Labs)' }],
   },
   {
+    id:        'civ_zoom',
+    accountId: '227',
+    nameMatch: /zoom/i,
+    memoMatch: /\bzoom\b/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'Zoom (from Lincoln Labs)' }],
+  },
+  {
+    id:        'civ_kadence',
+    accountId: '227',
+    nameMatch: /kadence/i,
+    memoMatch: /kadence/i,               // "Paypal *kadence …"
+    targets:   [{ lab: 'Civille', share: 1, label: 'Kadence (from Lincoln Labs)' }],
+  },
+  {
     id:        'ramp_split',
     accountId: '227',
     nameMatch: /\bramp\b/i,

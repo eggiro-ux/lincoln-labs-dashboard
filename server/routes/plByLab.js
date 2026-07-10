@@ -261,7 +261,10 @@ function matchLab(text) {
 // exactly what the target lab gains, so the company-wide P&L never changes.
 // The drill honors the split via the `realloc` query param (see getPlDrillData).
 //
-// Rule shape: { id, accountId, memoMatch, memoExclude?, targets: [{ lab, share, label }] }
+// Rule shape: { id, accountId, memoMatch?, nameMatch?, memoExclude?, targets: [{ lab, share, label }] }
+// - A rule claims a transaction when memoMatch hits the memo OR nameMatch hits
+//   the vendor name (seat charges are often memo'd with a staff name, so the
+//   vendor column is the only reliable signal).
 // - Rules are tried IN ORDER and the first match claims the transaction, so a
 //   memo matching several rules is only ever moved once (e.g. the "Brash Apps
 //   proxy + Fathom license" charge matches apps_brash before civ_fathom).
@@ -302,15 +305,61 @@ const TXN_REALLOCATIONS = [
       { lab: 'Truss',      share: 0.10, label: 'AWS — 10% Truss share (from Lincoln Labs)' },
     ],
   },
+  {
+    // Seat charges are memo'd with staff names (Danil Shingarev, Julia Collins),
+    // so match on the vendor name. memoMatch additionally catches the manual
+    // "Anthropic expenses are split 70% LL, 30% Truss" journal-entry credits so
+    // they ride along with the split and Lincoln Labs truly nets to zero.
+    id:        'anthropic_split',
+    accountId: '227',
+    memoMatch: /anthropic/i,
+    nameMatch: /anthropic/i,
+    targets: [                           // per Eric 2026-07-10: even 3-way split
+      { lab: 'Civille',    share: 1 / 3, label: 'Anthropic — 1/3 Civille share (from Lincoln Labs)' },
+      { lab: 'AwesomeAPI', share: 1 / 3, label: 'Anthropic — 1/3 AwesomeAPI share (from Lincoln Labs)' },
+      { lab: 'Truss',      share: 1 / 3, label: 'Anthropic — 1/3 Truss share (from Lincoln Labs)' },
+    ],
+  },
+  {
+    id:        'truss_loom',
+    accountId: '227',
+    nameMatch: /loom/i,                  // covers "Farrukh Umarov"-memo'd seats too
+    memoMatch: /\bloom\b/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Loom (from Lincoln Labs)' }],
+  },
+  {
+    id:        'stackblitz_split',
+    accountId: '227',
+    nameMatch: /stackblitz/i,            // memos are just "Eric Giroux"
+    targets: [                           // per Eric 2026-07-10: even 3-way split
+      { lab: 'Civille',    share: 1 / 3, label: 'Stackblitz — 1/3 Civille share (from Lincoln Labs)' },
+      { lab: 'Truss',      share: 1 / 3, label: 'Stackblitz — 1/3 Truss share (from Lincoln Labs)' },
+      { lab: 'AwesomeAPI', share: 1 / 3, label: 'Stackblitz — 1/3 AwesomeAPI share (from Lincoln Labs)' },
+    ],
+  },
+  {
+    id:        'atlassian_split',
+    accountId: '227',
+    memoMatch: /atlassian/i,
+    nameMatch: /atlassian/i,
+    targets: [                           // per Eric 2026-07-10: 20 / 25 / 50 / 5, none stays LL
+      { lab: 'Civille',    share: 0.20, label: 'Atlassian — 20% Civille share (from Lincoln Labs)' },
+      { lab: 'Truss',      share: 0.25, label: 'Atlassian — 25% Truss share (from Lincoln Labs)' },
+      { lab: 'AwesomeAPI', share: 0.50, label: 'Atlassian — 50% AwesomeAPI share (from Lincoln Labs)' },
+      { lab: 'Apps',       share: 0.05, label: 'Atlassian — 5% Apps share (from Lincoln Labs)' },
+    ],
+  },
 ];
 
-// First matching rule for this account+memo, or null. Single source of truth
-// for claim semantics — used by both the P&L aggregation and the drill filter.
-function claimingRule(accountId, memo) {
+// First matching rule for this account + memo/vendor-name, or null. Single
+// source of truth for claim semantics — used by both the P&L aggregation and
+// the drill filter.
+function claimingRule(accountId, memo, name) {
   const m = memo || '';
+  const n = name || '';
   return TXN_REALLOCATIONS.find(r =>
     String(r.accountId) === String(accountId) &&
-    r.memoMatch.test(m) &&
+    ((r.memoMatch && r.memoMatch.test(m)) || (r.nameMatch && r.nameMatch.test(n))) &&
     !(r.memoExclude && r.memoExclude.test(m))
   ) || null;
 }
@@ -332,7 +381,7 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
     const txns    = parseTransactionReport(report, accId);
     const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
     for (const t of txns) {
-      const rule = claimingRule(accId, t.memo);
+      const rule = claimingRule(accId, t.memo, t.name);
       if (!rule) continue;
       const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
       if (mi < 0) continue;
@@ -1168,16 +1217,17 @@ async function getPlDrillData(req, res) {
     const reallocParam = req.query.realloc;
     let shareNote = null;
     if (reallocParam === 'exclude') {
-      transactions = transactions.filter(t => !claimingRule(accountId, t.memo));
+      transactions = transactions.filter(t => !claimingRule(accountId, t.memo, t.name));
     } else if (reallocParam) {
       const [ruleId, labName] = reallocParam.split('::');
       const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);
       const target = rule && (rule.targets.find(tg => tg.lab === labName) || rule.targets[0]);
       if (target) {
-        transactions = transactions.filter(t => claimingRule(accountId, t.memo)?.id === ruleId);
+        transactions = transactions.filter(t => claimingRule(accountId, t.memo, t.name)?.id === ruleId);
         if (target.share !== 1) {
           transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
-          shareNote = `Amounts shown are ${target.lab}'s ${Math.round(target.share * 100)}% share of each transaction.`;
+          const pct = +(target.share * 100).toFixed(1); // 33.3, not 33
+          shareNote = `Amounts shown are ${target.lab}'s ${pct}% share of each transaction.`;
         }
       }
     }

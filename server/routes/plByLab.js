@@ -650,6 +650,21 @@ function claimingRule(accountId, memo, name) {
   ) || null;
 }
 
+// QBO randomly throttles one of the ~10 report calls a dashboard load makes
+// (ThrottleExceeded, errorCode 003001). A short backoff-retry recovers it.
+async function fetchPLDetailWithRetry(accessToken, realmId, accId, startDate, endDate, am, tries = 3) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
+    } catch (err) {
+      const throttled = err.response?.status === 429 ||
+        JSON.stringify(err.response?.data || '').includes('ThrottleExceeded');
+      if (!throttled || attempt >= tries) throw err;
+      await new Promise(r => setTimeout(r, 1500 * attempt));
+    }
+  }
+}
+
 // Per-account status of the most recent reallocation fetch — exposed on
 // /api/pl-by-lab?reallocDebug=1 (auth-gated like the rest) for diagnosing
 // silently-degraded rules in prod.
@@ -675,7 +690,7 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
   for (let i = 0; i < accountIds.length; i += CHUNK) {
     await Promise.all(accountIds.slice(i, i + CHUNK).map(async (accId) => {
       try {
-        const report  = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
+        const report  = await fetchPLDetailWithRetry(accessToken, realmId, accId, startDate, endDate, am);
         const txns    = parseTransactionReport(report, accId);
         const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
         for (const t of txns) {

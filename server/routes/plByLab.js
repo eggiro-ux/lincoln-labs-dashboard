@@ -476,6 +476,78 @@ const TXN_REALLOCATIONS = [
     memoMatch: /julia/i,
     targets:   [{ lab: 'Truss', share: 1, label: 'Julia Collins items (from Adv & Marketing)' }],
   },
+
+  // ── Internal Meetings — Lincoln Labs account 253 (per Eric 2026-07-10) ──────
+  // Hoopman items and the LL t-shirt stay LL by not being claimed.
+  {
+    id:        'im_uzbekistan',
+    accountId: '253',
+    memoMatch: /uzbekistan/i,            // summer retreat, tickets, Mellow airfare
+    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan retreat & travel (from Internal Meetings)' }],
+  },
+  {
+    id:        'im_georgia',
+    accountId: '253',
+    memoMatch: /georgia/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Georgia trip (from Internal Meetings)' }],
+  },
+  {
+    id:        'im_civille_staff',
+    accountId: '253',
+    memoMatch: /krusick|cashman|\bwes\b/i, // office snacks, intl cell bill, gift for Wes
+    targets:   [{ lab: 'Civille', share: 1, label: 'Civille staff items (from Internal Meetings)' }],
+  },
+  {
+    id:        'im_caboodle',
+    accountId: '253',
+    memoMatch: /caboodle/i,
+    targets:   [{ lab: 'Caboodle', share: 1, label: 'Caboodle items (from Internal Meetings)' }],
+  },
+
+  // ── Advertising account 126 ──────────────────────────────────────────────────
+  // Golf rule must precede chamber: the golf outing memo also contains "Chamber".
+  {
+    id:        'adv_golf',
+    accountId: '126',
+    memoMatch: /golf/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Chamber golf outing (from Advertising)' }],
+  },
+  {
+    id:        'adv_chamber',
+    accountId: '126',
+    memoMatch: /chamber/i,
+    nameMatch: /chamber/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'Oshkosh Chamber of Commerce (from Advertising)' }],
+  },
+  {
+    id:        'adv_woo',
+    accountId: '126',
+    memoMatch: /woocommerce|\bwoo-/i,
+    nameMatch: /woocommerce/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'WooCommerce (from Advertising)' }],
+  },
+
+  // ── Adv & Marketing — Meals account 1150040066 ──────────────────────────────
+  {
+    id:        'amm_truss_meals',
+    accountId: '1150040066',
+    nameMatch: /beauty|amaya|crack shack|cosmopolitan/i, // per Eric: these venues are Truss
+    targets:   [{ lab: 'Truss', share: 1, label: 'Marketing meals — Truss venues (from Adv & Marketing)' }],
+  },
+  {
+    id:        'amm_pj',
+    accountId: '1150040066',
+    memoMatch: /\bpj\b|cashman/i,        // "anything PJ is Civille" (PJ = Paul J Cashman)
+    targets:   [{ lab: 'Civille', share: 1, label: 'PJ / Cashman tradeshow items (from Adv & Marketing)' }],
+  },
+
+  // ── Adv & Marketing — Travel account 1150040068 ─────────────────────────────
+  {
+    id:        'amt_pj',
+    accountId: '1150040068',
+    memoMatch: /\bpj\b|cashman/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'PJ / Cashman travel (from Adv & Marketing)' }],
+  },
 ];
 
 // ── Whole-account lab overrides ───────────────────────────────────────────────
@@ -503,6 +575,13 @@ const CIV_TRUSS_5050 = [
   { lab: 'Civille', share: 0.5 },
   { lab: 'Truss',   share: 0.5 },
 ];
+const EVEN_5WAY = [                      // all labs except Caboodle
+  { lab: 'Civille',      share: 0.20 },
+  { lab: 'Truss',        share: 0.20 },
+  { lab: 'AwesomeAPI',   share: 0.20 },
+  { lab: 'Apps',         share: 0.20 },
+  { lab: 'Lincoln Labs', share: 0.20 },
+];
 // LL payroll (accounts 86/90/147/135) splits by month, derived from Gusto
 // per-employee gross pay (verified to the cent against the QBO wage JEs,
 // 2026-07-10). People in the LL payroll bucket and their lab weights per Eric:
@@ -529,6 +608,7 @@ const ACCOUNT_SPLITS = {
   '8':   { name: 'Insurance',                targets: EVEN_4WAY },
   '10':  { name: 'Legal & Professional',     targets: EVEN_4WAY },
   '65':  { name: 'QuickBooks Subscriptions', targets: EVEN_4WAY },
+  '1150040041': { name: 'QuickBooks Payments Fees', targets: EVEN_5WAY },
   '86':  { name: 'Payroll Wages',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },

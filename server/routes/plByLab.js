@@ -252,6 +252,60 @@ function matchLab(text) {
   return null;
 }
 
+// ── Transaction-level reallocations ───────────────────────────────────────────
+// Some QBO accounts contain postings that belong to a different lab than the
+// account's name implies (e.g. Google Workspace charges for Civille domains
+// booked to the Lincoln Labs software sub-account). matchLab works at the
+// account level and can't split those, so these memo rules move individual
+// transactions between labs. Zero-sum: the source lab's row is reduced by
+// exactly what the target lab gains, so the company-wide P&L never changes.
+// The drill honors the split via the `realloc` query param (see getPlDrillData).
+const TXN_REALLOCATIONS = [
+  {
+    id:        'civ_workspace',
+    accountId: '227',                 // Software → "Lincoln Labs" sub-account
+    memoMatch: /civil|getci/i,        // Google Workspace_civil / _getci domains
+    toLab:     'Civille',
+    label:     'Google Workspace — Civille & GetCivil (from Lincoln Labs)',
+  },
+  {
+    id:        'apps_proxy',
+    accountId: '227',
+    memoMatch: /^apps\s*-\s*proxy/i,  // "Apps - proxy server (x2)"
+    toLab:     'Apps',
+    label:     'Proxy server (from Lincoln Labs)',
+  },
+];
+
+// Fetch per-transaction detail for every account that has reallocation rules
+// and bucket matching amounts by month. Returns { accountId: [{ rule, values }] }
+// with only non-zero entries, or null when there is nothing to move.
+async function fetchTxnReallocations(accessToken, realmId, months, am) {
+  const accountIds = [...new Set(TXN_REALLOCATIONS.map(r => String(r.accountId)))];
+  if (!accountIds.length) return null;
+  const startDate = months[0].start;
+  const endDate   = months[months.length - 1].end;
+
+  const byAccount = {};
+  await Promise.all(accountIds.map(async (accId) => {
+    const report = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
+    const txns   = parseTransactionReport(report, accId);
+    for (const rule of TXN_REALLOCATIONS) {
+      if (String(rule.accountId) !== accId) continue;
+      const values = months.map(() => 0);
+      for (const t of txns) {
+        if (!rule.memoMatch.test(t.memo || '')) continue;
+        const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
+        if (mi >= 0) values[mi] += t.amount;
+      }
+      if (values.some(v => v !== 0)) {
+        (byAccount[accId] = byAccount[accId] || []).push({ rule, values });
+      }
+    }
+  }));
+  return Object.keys(byAccount).length ? byAccount : null;
+}
+
 // ── Compound label construction ───────────────────────────────────────────────
 function buildLabel(parentSectionName, rowLabel) {
   const p = (parentSectionName || '').trim();
@@ -320,7 +374,9 @@ function slugify(s) {
 }
 
 // ── Core parser ───────────────────────────────────────────────────────────────
-function parsePL(pl) {
+// reallocByAccount: optional output of fetchTxnReallocations — per-account
+// month vectors to move between labs at the expense-routing step.
+function parsePL(pl, reallocByAccount) {
   const cols = pl.Columns?.Column || [];
 
   // ColData offset: QBO sometimes includes an Account column first
@@ -406,11 +462,29 @@ function parsePL(pl) {
     } else {
       // expenses — do NOT accumulate sumExpenses here (top-level totals used)
       // Store group metadata so buildLabRows can emit collapsible sections
+
+      // Transaction-level reallocations: subtract moved amounts from this row
+      // and emit a companion row in each target lab. `realloc` tells the drill
+      // which side of the split to show ('exclude' = source, rule id = target).
+      const moves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
+      const expVals = moves.length
+        ? vals.map((v, i) => moves.reduce((acc, m) => acc - m.values[i], v))
+        : vals;
+      const realloc = moves.length ? 'exclude' : undefined;
+
       if (lab) {
         labExpenses[lab] = labExpenses[lab] || [];
-        labExpenses[lab].push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName, accountId });
+        labExpenses[lab].push({ label: displayLabel, values: expVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals, group: groupName, subLabel: parentSectionName, accountId });
+        unassignedExpenses.push({ label: displayLabel, values: expVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
+      }
+      for (const m of moves) {
+        labExpenses[m.rule.toLab] = labExpenses[m.rule.toLab] || [];
+        labExpenses[m.rule.toLab].push({
+          label: m.rule.label, values: m.values,
+          group: groupName, subLabel: null,
+          accountId, realloc: m.rule.id,
+        });
       }
     }
   }
@@ -716,7 +790,7 @@ function parsePL(pl) {
       }
 
       // Ungrouped rows first (shouldn't be many; mainly a safety fallback)
-      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
+      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
 
       // Grouped expense sections — each group gets a collapsible header + child rows
       for (const [grpName, grpRows] of groupMap) {
@@ -737,6 +811,7 @@ function parsePL(pl) {
             type:     'group_child',
             groupId:  grpId,
             accountId: r.accountId,
+            realloc:  r.realloc,
           });
         });
       }
@@ -816,7 +891,7 @@ function parsePL(pl) {
 
     if (expRows.length > 0) {
       rows.push({ label: 'OPERATING EXPENSES', type: 'section_header' });
-      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
+      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
       const totalExp  = sumRows(expRows);
       rows.push({ label: 'Total Expenses', values: totalExp, type: 'total_expenses' });
       const totalCOGS2 = sumRows(cogsRows);
@@ -871,15 +946,21 @@ async function getPlByLabData(req, res) {
     const startDate = months[0].start;
     const endDate   = months[months.length - 1].end;
 
-    const [pl, forexByMonth] = await Promise.all([
+    const [pl, forexByMonth, reallocations] = await Promise.all([
       fetchTotalPL(accessToken, realmId, startDate, endDate, am),
       // Forex breakout is a nice-to-have — never let it sink the whole P&L
       fetchForexFeeByMonth(accessToken, realmId, months, am).catch(err => {
         console.error('/api/pl-by-lab ItemSales (Forex) fetch failed:', err.response?.data || err.message);
         return null;
       }),
+      // Same deal for transaction-level reallocations: on failure, rows simply
+      // stay with the account's lab instead of the whole report erroring.
+      fetchTxnReallocations(accessToken, realmId, months, am).catch(err => {
+        console.error('/api/pl-by-lab reallocation fetch failed:', err.response?.data || err.message);
+        return null;
+      }),
     ]);
-    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges } = parsePL(pl);
+    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges } = parsePL(pl, reallocations);
 
     if (forexByMonth) breakOutForexRow(labs['Truss'], monthRanges, forexByMonth);
 
@@ -1035,7 +1116,19 @@ async function getPlDrillData(req, res) {
     // Debug escape hatch (auth-gated like the rest of the route): return the
     // raw QBO report so column-encoding surprises can be diagnosed in prod.
     if (req.query.raw === '1') return res.json(report);
-    const transactions = parseTransactionReport(report, accountId);
+    let transactions = parseTransactionReport(report, accountId);
+
+    // Reallocation-aware filtering (see TXN_REALLOCATIONS): a drill on a source
+    // row hides the transactions that were moved to another lab; a drill on a
+    // reallocated row shows only them. No param = raw account (full P&L tab).
+    const reallocParam = req.query.realloc;
+    if (reallocParam === 'exclude') {
+      const rules = TXN_REALLOCATIONS.filter(r => String(r.accountId) === String(accountId));
+      transactions = transactions.filter(t => !rules.some(r => r.memoMatch.test(t.memo || '')));
+    } else if (reallocParam) {
+      const rule = TXN_REALLOCATIONS.find(r => r.id === reallocParam);
+      if (rule) transactions = transactions.filter(t => rule.memoMatch.test(t.memo || ''));
+    }
 
     console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am} → ${transactions.length} txns`);
     res.json({ transactions });
@@ -1046,4 +1139,5 @@ async function getPlDrillData(req, res) {
   }
 }
 
-module.exports = { getPlByLabData, getPlDrillData };
+// parsePL and TXN_REALLOCATIONS are exported for tests only
+module.exports = { getPlByLabData, getPlDrillData, parsePL, TXN_REALLOCATIONS };

@@ -306,18 +306,51 @@ const TXN_REALLOCATIONS = [
     ],
   },
   {
-    // Seat charges are memo'd with staff names (Danil Shingarev, Julia Collins),
-    // so match on the vendor name. memoMatch additionally catches the manual
-    // "Anthropic expenses are split 70% LL, 30% Truss" journal-entry credits so
-    // they ride along with the split and Lincoln Labs truly nets to zero.
+    // The bookkeeper posts manual "Anthropic expenses are split 70% LL, 30%
+    // Truss" journal entries: a credit here in 227 and a debit in 229
+    // (Software — Truss). Eric wants the dashboard split to ignore that
+    // bookkeeping entirely, so route the credits to Truss where they exactly
+    // cancel the debits — the JE nets to zero on every lab P&L, past and
+    // future, and the seat charges below split on their gross amounts.
+    id:        'anthropic_je',
+    accountId: '227',
+    memoMatch: /anthropic expenses are split/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Anthropic 70/30 journal entries (from Lincoln Labs)' }],
+  },
+  {
+    // Seat charges are memo'd with staff names (Danil Shingarev, Julia
+    // Collins), so match on the vendor name column.
     id:        'anthropic_split',
     accountId: '227',
-    memoMatch: /anthropic/i,
     nameMatch: /anthropic/i,
-    targets: [                           // per Eric 2026-07-10: even 3-way split
+    targets: [                           // per Eric 2026-07-10: even 3-way split of gross
       { lab: 'Civille',    share: 1 / 3, label: 'Anthropic — 1/3 Civille share (from Lincoln Labs)' },
       { lab: 'AwesomeAPI', share: 1 / 3, label: 'Anthropic — 1/3 AwesomeAPI share (from Lincoln Labs)' },
       { lab: 'Truss',      share: 1 / 3, label: 'Anthropic — 1/3 Truss share (from Lincoln Labs)' },
+    ],
+  },
+  {
+    id:        'civ_openai',
+    accountId: '227',
+    nameMatch: /openai/i,                // memos are usually blank
+    memoMatch: /openai|chatgpt/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'OpenAI (from Lincoln Labs)' }],
+  },
+  {
+    id:        'civ_figma',
+    accountId: '227',
+    nameMatch: /figma/i,
+    memoMatch: /figma/i,
+    targets:   [{ lab: 'Civille', share: 1, label: 'Figma (from Lincoln Labs)' }],
+  },
+  {
+    id:        'ramp_split',
+    accountId: '227',
+    nameMatch: /\bramp\b/i,
+    memoMatch: /\bramp\b/i,
+    targets: [                           // per Eric 2026-07-10: 40 Truss / 40 Civille / 20 stays LL
+      { lab: 'Truss',   share: 0.40, label: 'Ramp — 40% Truss share (from Lincoln Labs)' },
+      { lab: 'Civille', share: 0.40, label: 'Ramp — 40% Civille share (from Lincoln Labs)' },
     ],
   },
   {
@@ -1217,7 +1250,21 @@ async function getPlDrillData(req, res) {
     const reallocParam = req.query.realloc;
     let shareNote = null;
     if (reallocParam === 'exclude') {
-      transactions = transactions.filter(t => !claimingRule(accountId, t.memo, t.name));
+      // Fully-claimed transactions disappear; partially-claimed ones (rules
+      // whose target shares sum to < 1) stay at the share left with this lab.
+      let hasRemainder = false;
+      const kept = [];
+      for (const t of transactions) {
+        const rule = claimingRule(accountId, t.memo, t.name);
+        if (!rule) { kept.push(t); continue; }
+        const remainder = 1 - rule.targets.reduce((s, tg) => s + tg.share, 0);
+        if (remainder > 1e-9) {
+          kept.push({ ...t, amount: +(t.amount * remainder).toFixed(2) });
+          hasRemainder = true;
+        }
+      }
+      transactions = kept;
+      if (hasRemainder) shareNote = 'Split transactions are shown at the share remaining with this account.';
     } else if (reallocParam) {
       const [ruleId, labName] = reallocParam.split('::');
       const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);

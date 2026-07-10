@@ -260,26 +260,66 @@ function matchLab(text) {
 // transactions between labs. Zero-sum: the source lab's row is reduced by
 // exactly what the target lab gains, so the company-wide P&L never changes.
 // The drill honors the split via the `realloc` query param (see getPlDrillData).
+//
+// Rule shape: { id, accountId, memoMatch, memoExclude?, targets: [{ lab, share, label }] }
+// - Rules are tried IN ORDER and the first match claims the transaction, so a
+//   memo matching several rules is only ever moved once (e.g. the "Brash Apps
+//   proxy + Fathom license" charge matches apps_brash before civ_fathom).
+// - targets shares may sum to < 1 to leave a remainder with the source lab.
 const TXN_REALLOCATIONS = [
   {
     id:        'civ_workspace',
-    accountId: '227',                 // Software → "Lincoln Labs" sub-account
-    memoMatch: /civil|getci/i,        // Google Workspace_civil / _getci domains
-    toLab:     'Civille',
-    label:     'Google Workspace — Civille & GetCivil (from Lincoln Labs)',
+    accountId: '227',                    // Software → "Lincoln Labs" sub-account
+    memoMatch: /civil|getci|ripon/i,     // Google Workspace_civil/_getci/_ripon — all Civille client domains
+    targets:   [{ lab: 'Civille', share: 1, label: 'Google Workspace — Civille, GetCivil & Ripon (from Lincoln Labs)' }],
+  },
+  {
+    id:        'apps_brash',
+    accountId: '227',
+    memoMatch: /brash/i,                 // Brash Apps proxy server (incl. bundled Fathom license)
+    targets:   [{ lab: 'Apps', share: 1, label: 'Brash Apps — proxy server & Fathom (from Lincoln Labs)' }],
   },
   {
     id:        'apps_proxy',
     accountId: '227',
-    memoMatch: /^apps\s*-\s*proxy/i,  // "Apps - proxy server (x2)"
-    toLab:     'Apps',
-    label:     'Proxy server (from Lincoln Labs)',
+    memoMatch: /^apps\s*-\s*proxy/i,     // "Apps - proxy server (x2)"
+    targets:   [{ lab: 'Apps', share: 1, label: 'Proxy server (from Lincoln Labs)' }],
+  },
+  {
+    id:        'civ_fathom',
+    accountId: '227',
+    memoMatch: /fathom/i,                // Fathom licenses belong to Civille…
+    memoExclude: /eric\s+giroux/i,       // …unless the seat is Eric's (stays Lincoln Labs)
+    targets:   [{ lab: 'Civille', share: 1, label: 'Fathom (from Lincoln Labs)' }],
+  },
+  {
+    id:        'aws_split',
+    accountId: '227',
+    memoMatch: /amazon web services|\baws\b/i,
+    targets: [                           // per Eric 2026-07-10: 70 / 20 / 10
+      { lab: 'Civille',    share: 0.70, label: 'AWS — 70% Civille share (from Lincoln Labs)' },
+      { lab: 'AwesomeAPI', share: 0.20, label: 'AWS — 20% AwesomeAPI share (from Lincoln Labs)' },
+      { lab: 'Truss',      share: 0.10, label: 'AWS — 10% Truss share (from Lincoln Labs)' },
+    ],
   },
 ];
 
+// First matching rule for this account+memo, or null. Single source of truth
+// for claim semantics — used by both the P&L aggregation and the drill filter.
+function claimingRule(accountId, memo) {
+  const m = memo || '';
+  return TXN_REALLOCATIONS.find(r =>
+    String(r.accountId) === String(accountId) &&
+    r.memoMatch.test(m) &&
+    !(r.memoExclude && r.memoExclude.test(m))
+  ) || null;
+}
+
 // Fetch per-transaction detail for every account that has reallocation rules
-// and bucket matching amounts by month. Returns { accountId: [{ rule, values }] }
-// with only non-zero entries, or null when there is nothing to move.
+// and bucket claimed amounts by month. Each transaction is claimed by at most
+// one rule (claimingRule) and distributed across that rule's targets by share.
+// Returns { accountId: [{ rule, target, values }] } with only non-zero entries,
+// or null when there is nothing to move.
 async function fetchTxnReallocations(accessToken, realmId, months, am) {
   const accountIds = [...new Set(TXN_REALLOCATIONS.map(r => String(r.accountId)))];
   if (!accountIds.length) return null;
@@ -288,20 +328,23 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
 
   const byAccount = {};
   await Promise.all(accountIds.map(async (accId) => {
-    const report = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
-    const txns   = parseTransactionReport(report, accId);
-    for (const rule of TXN_REALLOCATIONS) {
-      if (String(rule.accountId) !== accId) continue;
-      const values = months.map(() => 0);
-      for (const t of txns) {
-        if (!rule.memoMatch.test(t.memo || '')) continue;
-        const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
-        if (mi >= 0) values[mi] += t.amount;
-      }
-      if (values.some(v => v !== 0)) {
-        (byAccount[accId] = byAccount[accId] || []).push({ rule, values });
+    const report  = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
+    const txns    = parseTransactionReport(report, accId);
+    const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
+    for (const t of txns) {
+      const rule = claimingRule(accId, t.memo);
+      if (!rule) continue;
+      const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
+      if (mi < 0) continue;
+      for (const target of rule.targets) {
+        const key = `${rule.id}::${target.lab}`;
+        let e = entries.get(key);
+        if (!e) { e = { rule, target, values: months.map(() => 0) }; entries.set(key, e); }
+        e.values[mi] += t.amount * target.share;
       }
     }
+    const list = [...entries.values()].filter(e => e.values.some(v => v !== 0));
+    if (list.length) byAccount[accId] = list;
   }));
   return Object.keys(byAccount).length ? byAccount : null;
 }
@@ -479,11 +522,11 @@ function parsePL(pl, reallocByAccount) {
         unassignedExpenses.push({ label: displayLabel, values: expVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
       }
       for (const m of moves) {
-        labExpenses[m.rule.toLab] = labExpenses[m.rule.toLab] || [];
-        labExpenses[m.rule.toLab].push({
-          label: m.rule.label, values: m.values,
+        labExpenses[m.target.lab] = labExpenses[m.target.lab] || [];
+        labExpenses[m.target.lab].push({
+          label: m.target.label, values: m.values,
           group: groupName, subLabel: null,
-          accountId, realloc: m.rule.id,
+          accountId, realloc: `${m.rule.id}::${m.target.lab}`,
         });
       }
     }
@@ -1120,18 +1163,27 @@ async function getPlDrillData(req, res) {
 
     // Reallocation-aware filtering (see TXN_REALLOCATIONS): a drill on a source
     // row hides the transactions that were moved to another lab; a drill on a
-    // reallocated row shows only them. No param = raw account (full P&L tab).
+    // reallocated row ('<ruleId>::<lab>') shows only the ones that rule claimed,
+    // scaled to that lab's share. No param = raw account (full P&L tab).
     const reallocParam = req.query.realloc;
+    let shareNote = null;
     if (reallocParam === 'exclude') {
-      const rules = TXN_REALLOCATIONS.filter(r => String(r.accountId) === String(accountId));
-      transactions = transactions.filter(t => !rules.some(r => r.memoMatch.test(t.memo || '')));
+      transactions = transactions.filter(t => !claimingRule(accountId, t.memo));
     } else if (reallocParam) {
-      const rule = TXN_REALLOCATIONS.find(r => r.id === reallocParam);
-      if (rule) transactions = transactions.filter(t => rule.memoMatch.test(t.memo || ''));
+      const [ruleId, labName] = reallocParam.split('::');
+      const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);
+      const target = rule && (rule.targets.find(tg => tg.lab === labName) || rule.targets[0]);
+      if (target) {
+        transactions = transactions.filter(t => claimingRule(accountId, t.memo)?.id === ruleId);
+        if (target.share !== 1) {
+          transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
+          shareNote = `Amounts shown are ${target.lab}'s ${Math.round(target.share * 100)}% share of each transaction.`;
+        }
+      }
     }
 
-    console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am} → ${transactions.length} txns`);
-    res.json({ transactions });
+    console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am}${reallocParam ? ` realloc=${reallocParam}` : ''} → ${transactions.length} txns`);
+    res.json(shareNote ? { transactions, shareNote } : { transactions });
   } catch (err) {
     const qboErr = err.response?.data;
     console.error('/api/pl-drill error:', qboErr || err.message);
@@ -1139,5 +1191,5 @@ async function getPlDrillData(req, res) {
   }
 }
 
-// parsePL and TXN_REALLOCATIONS are exported for tests only
-module.exports = { getPlByLabData, getPlDrillData, parsePL, TXN_REALLOCATIONS };
+// parsePL, TXN_REALLOCATIONS, and claimingRule are exported for tests only
+module.exports = { getPlByLabData, getPlDrillData, parsePL, TXN_REALLOCATIONS, claimingRule };

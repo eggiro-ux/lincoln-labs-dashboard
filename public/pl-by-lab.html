@@ -1133,14 +1133,14 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         throw new Error(j.detail || j.error || `HTTP ${resp.status}`);
       }
       const d = await resp.json();
-      document.getElementById('drillBody').innerHTML = buildDrillTable(d.transactions, expected);
+      document.getElementById('drillBody').innerHTML = buildDrillTable(d.transactions, expected, d.shareNote);
     } catch (err) {
       document.getElementById('drillBody').innerHTML =
         `<div class="state-msg state-error" style="padding:32px">Error: ${escH(err.message)}</div>`;
     }
   }
 
-  function buildDrillTable(txns, expected) {
+  function buildDrillTable(txns, expected, shareNote) {
     if (!txns || !txns.length) {
       return '<div class="drill-empty">No transactions found for this account and period.</div>';
     }
@@ -1169,7 +1169,11 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       </tr>`;
     }
 
-    return `<table class="drill-txn-table">
+    const shareBanner = shareNote
+      ? `<div style="padding:10px 16px;font-size:0.72rem;color:var(--muted);font-style:italic;border-bottom:1px solid var(--border)">${escH(shareNote)}</div>`
+      : '';
+
+    return `${shareBanner}<table class="drill-txn-table">
       <thead><tr>
         <th>Date</th><th>Type</th><th>Ref #</th><th>Name</th><th>Memo</th><th class="r">Amount</th>
       </tr></thead>

@@ -548,6 +548,52 @@ const TXN_REALLOCATIONS = [
     memoMatch: /\bpj\b|cashman/i,
     targets:   [{ lab: 'Civille', share: 1, label: 'PJ / Cashman travel (from Adv & Marketing)' }],
   },
+
+  // ── Onshore Labor COGS account 94 (per Eric 2026-07-10) ─────────────────────
+  {
+    // Farrukh & Hoopman contractor payments "always" split this way. Also
+    // catches the "clear duplicated payment to Farrukh" correction so the
+    // split applies to the net amount.
+    id:        'onshore_contractors',
+    accountId: '94',
+    memoMatch: /farrukh|umarov|hoopman/i,
+    nameMatch: /farrukh|umarov|hoopman/i,
+    targets: [
+      { lab: 'Truss',        share: 0.25, label: 'Farrukh & Hoopman — 25% Truss share (from Onshore Labor)' },
+      { lab: 'Civille',      share: 0.25, label: 'Farrukh & Hoopman — 25% Civille share (from Onshore Labor)' },
+      { lab: 'AwesomeAPI',   share: 0.25, label: 'Farrukh & Hoopman — 25% AwesomeAPI share (from Onshore Labor)' },
+      { lab: 'Lincoln Labs', share: 0.20, label: 'Farrukh & Hoopman — 20% share (from Onshore Labor)' },
+      { lab: 'Apps',         share: 0.05, label: 'Farrukh & Hoopman — 5% Apps share (from Onshore Labor)' },
+    ],
+  },
+
+  // ── Offshore Labor COGS account 82 (per Eric 2026-07-10) ────────────────────
+  {
+    // Mellow / Solar Staff is all Truss EXCEPT $5,500/mo, which is Egor
+    // Blajenov's pay and splits per his weights. carveMonthly takes up to that
+    // amount from each month's matched total; the remainder follows targets.
+    id:           'offshore_mellow',
+    accountId:    '82',
+    memoMatch:    /mellow|solar staff/i,
+    nameMatch:    /solar staff/i,
+    carveMonthly: 5500,
+    carveTargets: [
+      { lab: 'Civille',      share: 0.30, label: 'Egor Blajenov — 30% Civille share (from Offshore Labor)' },
+      { lab: 'Truss',        share: 0.20, label: 'Egor Blajenov — 20% Truss share (from Offshore Labor)' },
+      { lab: 'Apps',         share: 0.10, label: 'Egor Blajenov — 10% Apps share (from Offshore Labor)' },
+      { lab: 'AwesomeAPI',   share: 0.10, label: 'Egor Blajenov — 10% AwesomeAPI share (from Offshore Labor)' },
+      { lab: 'Lincoln Labs', share: 0.30, label: 'Egor Blajenov — 30% share (from Offshore Labor)' },
+    ],
+    targets: [{ lab: 'Truss', share: 1, label: 'Mellow / Solar Staff payroll, ex-Egor (from Offshore Labor)' }],
+  },
+  {
+    // Uzbekistan (and the zero-net Georgia entries) — Truss overseas payroll,
+    // consistent with every other Uzbekistan item.
+    id:        'offshore_uzbekistan',
+    accountId: '82',
+    memoMatch: /uzbekistan|georgia/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan & Georgia payroll (from Offshore Labor)' }],
+  },
 ];
 
 // ── Whole-account lab overrides ───────────────────────────────────────────────
@@ -692,20 +738,33 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
       try {
         const report  = await fetchPLDetailWithRetry(accessToken, realmId, accId, startDate, endDate, am);
         const txns    = parseTransactionReport(report, accId);
-        const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
+        // Bucket each rule's claimed amounts by month first, so carveMonthly
+        // rules can take a fixed slice of the month's total before shares apply.
+        const matched = new Map(); // rule → values[N]
         for (const t of txns) {
           const rule = claimingRule(accId, t.memo, t.name);
           if (!rule) continue;
           const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
           if (mi < 0) continue;
+          let v = matched.get(rule);
+          if (!v) { v = months.map(() => 0); matched.set(rule, v); }
+          v[mi] += t.amount;
+        }
+        const entries = [];
+        for (const [rule, vals] of matched) {
+          const restVals = vals.slice();
+          if (rule.carveMonthly) {
+            const carveVals = vals.map(v => Math.max(0, Math.min(v, rule.carveMonthly)));
+            for (let i = 0; i < restVals.length; i++) restVals[i] -= carveVals[i];
+            for (const target of rule.carveTargets) {
+              entries.push({ rule, target, carve: true, values: carveVals.map(v => v * target.share) });
+            }
+          }
           for (const target of rule.targets) {
-            const key = `${rule.id}::${target.lab}`;
-            let e = entries.get(key);
-            if (!e) { e = { rule, target, values: months.map(() => 0) }; entries.set(key, e); }
-            e.values[mi] += t.amount * target.share;
+            entries.push({ rule, target, values: restVals.map(v => v * target.share) });
           }
         }
-        const list = [...entries.values()].filter(e => e.values.some(v => v !== 0));
+        const list = entries.filter(e => e.values.some(v => v !== 0));
         if (list.length) byAccount[accId] = list;
         lastReallocStatus[accId] = `ok: ${txns.length} txns, ${list.length} moves`;
       } catch (err) {
@@ -854,6 +913,22 @@ function parsePL(pl, reallocByAccount) {
   // parentSectionName: the display name of the immediate parent section (for label construction)
   // topSectionType: 'income' | 'cogs' | 'expenses'
   // Route a data row (label + values) into the correct lab bucket.
+  // Reallocation moves for one account: whole-account splits (ACCOUNT_SPLITS,
+  // computed directly from the month vector) plus transaction-level rules
+  // (pre-fetched into reallocByAccount). Applies to COGS and expense rows.
+  function computeMoves(accountId, vals) {
+    const acctSplit = accountId && ACCOUNT_SPLITS[String(accountId)];
+    const acctMoves = acctSplit ? acctSplitLabs(acctSplit).map(lab => ({
+      rule:   { id: `acct_${accountId}` },
+      target: { lab, label: acctSplitLabel(acctSplit, lab) },
+      values: vals.map((v, i) => v * acctShareFor(acctSplit, monthKeys[i], lab)),
+    })) : [];
+    const txnMoves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
+    return acctMoves.concat(txnMoves);
+  }
+  const moveRealloc = m =>
+    m.carve ? `${m.rule.id}::carve::${m.target.lab}` : `${m.rule.id}::${m.target.lab}`;
+
   function routeDataRow(topSectionType, displayLabel, parentSectionName, rowLabel, vals, groupName, accountId) {
     const lab = (accountId && ACCOUNT_LAB[String(accountId)])
       || matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
@@ -866,48 +941,46 @@ function parsePL(pl, reallocByAccount) {
         for (let i = 0; i < N; i++) buRevByMonth[incLab][i] += vals[i];
       }
       for (let i = 0; i < N; i++) sumIncome[i] += vals[i];
-    } else if (topSectionType === 'cogs') {
+      return;
+    }
+
+    // COGS + expenses: subtract moved amounts from this row and emit a
+    // companion row in each target lab. `realloc` tells the drill which side
+    // of the split to show ('exclude' = source, rule id = target).
+    const moves   = computeMoves(accountId, vals);
+    const adjVals = moves.length
+      ? vals.map((v, i) => moves.reduce((acc, m) => acc - m.values[i], v))
+      : vals;
+    const realloc = moves.length ? 'exclude' : undefined;
+
+    if (topSectionType === 'cogs') {
       if (lab) {
         labCOGS[lab] = labCOGS[lab] || [];
-        labCOGS[lab].push({ label: displayLabel, values: vals, accountId });
+        labCOGS[lab].push({ label: displayLabel, values: adjVals, accountId, realloc });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: vals, accountId });
+        unassignedExpenses.push({ label: displayLabel, values: adjVals, accountId, realloc });
       }
+      for (const m of moves) {
+        labCOGS[m.target.lab] = labCOGS[m.target.lab] || [];
+        labCOGS[m.target.lab].push({ label: m.target.label, values: m.values, accountId, realloc: moveRealloc(m) });
+      }
+      // Company-level COGS totals use the ORIGINAL values — moves are zero-sum
       for (let i = 0; i < N; i++) sumCOGS[i] += vals[i];
     } else {
       // expenses — do NOT accumulate sumExpenses here (top-level totals used)
       // Store group metadata so buildLabRows can emit collapsible sections
-
-      // Transaction-level reallocations: subtract moved amounts from this row
-      // and emit a companion row in each target lab. `realloc` tells the drill
-      // which side of the split to show ('exclude' = source, rule id = target).
-      // Whole-account splits (ACCOUNT_SPLITS) ride the same pipeline, with the
-      // split computed directly from the account's month vector.
-      const acctSplit  = accountId && ACCOUNT_SPLITS[String(accountId)];
-      const acctMoves  = acctSplit ? acctSplitLabs(acctSplit).map(lab => ({
-        rule:   { id: `acct_${accountId}` },
-        target: { lab, label: acctSplitLabel(acctSplit, lab) },
-        values: vals.map((v, i) => v * acctShareFor(acctSplit, monthKeys[i], lab)),
-      })) : [];
-      const txnMoves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
-      const moves    = acctMoves.concat(txnMoves);
-      const expVals = moves.length
-        ? vals.map((v, i) => moves.reduce((acc, m) => acc - m.values[i], v))
-        : vals;
-      const realloc = moves.length ? 'exclude' : undefined;
-
       if (lab) {
         labExpenses[lab] = labExpenses[lab] || [];
-        labExpenses[lab].push({ label: displayLabel, values: expVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
+        labExpenses[lab].push({ label: displayLabel, values: adjVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
       } else {
-        unassignedExpenses.push({ label: displayLabel, values: expVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
+        unassignedExpenses.push({ label: displayLabel, values: adjVals, group: groupName, subLabel: parentSectionName, accountId, realloc });
       }
       for (const m of moves) {
         labExpenses[m.target.lab] = labExpenses[m.target.lab] || [];
         labExpenses[m.target.lab].push({
           label: m.target.label, values: m.values,
           group: groupName, subLabel: null,
-          accountId, realloc: `${m.rule.id}::${m.target.lab}`,
+          accountId, realloc: moveRealloc(m),
         });
       }
     }
@@ -1126,8 +1199,13 @@ function parsePL(pl, reallocByAccount) {
   const trussSalDeltaMo    = trussSalIncMo.map((v, i) => v - trussSalCOGSMo[i]);
   const trussEconRevMo     = trussNonSalRevMo.map((v, i) => v + trussSalDeltaMo[i]);
   const trussEconRevTotal  = trussEconRevMo.reduce((a, b) => a + b, 0);
+  // Non-salary COGS (e.g. reallocated offshore/onshore labor) isn't part of
+  // the pass-through model — count it against Truss BU net income directly,
+  // matching what the Truss lab tab shows.
+  const trussNonSalCOGSTotal = sumRows((labCOGS['Truss'] || []).filter(r => !trussSalCOGSRows.includes(r)))
+    .reduce((a, b) => a + b, 0);
   const trussBUExpTotal    = sumRows(labExpenses['Truss'] || []).reduce((a, b) => a + b, 0);
-  const trussBUNetIncome   = trussEconRevTotal - trussBUExpTotal;
+  const trussBUNetIncome   = trussEconRevTotal - trussNonSalCOGSTotal - trussBUExpTotal;
   const trussBUMarginPct   = trussEconRevTotal
     ? parseFloat((trussBUNetIncome / trussEconRevTotal * 100).toFixed(1)) : null;
 
@@ -1143,7 +1221,8 @@ function parsePL(pl, reallocByAccount) {
   // Build the five named lab rows first so we can compute the true catch-all residual.
   const civBU     = makeRevRow('Civille', civilleRev, labCOGS['Civille'] || [], labExpenses['Civille'] || []);
   const trussBU   = { name: 'Truss', monthRevenue: trussEconRevMo, totalRevenue: trussEconRevTotal,
-                      totalCOGS: 0, grossProfit: trussEconRevTotal, gmPct: null,
+                      totalCOGS: trussNonSalCOGSTotal,
+                      grossProfit: trussEconRevTotal - trussNonSalCOGSTotal, gmPct: null,
                       totalExpenses: trussBUExpTotal, netIncome: trussBUNetIncome, netMarginPct: trussBUMarginPct };
   const awesomeBU = makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []);
   const appsBU    = makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []);
@@ -1193,7 +1272,7 @@ function parsePL(pl, reallocByAccount) {
     // COGS
     if (cogsRows.length > 0) {
       rows.push({ label: 'COST OF GOODS SOLD', type: 'section_header' });
-      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
+      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
       const totalCOGS = sumRows(cogsRows);
       rows.push({ label: 'Total COGS', values: totalCOGS, type: 'total_cogs' });
       const gp = totalInc.map((v, i) => v - totalCOGS[i]);
@@ -1570,7 +1649,10 @@ async function getPlDrillData(req, res) {
       transactions = kept;
       if (hasRemainder) shareNote = 'Split transactions are shown at the share remaining with this account.';
     } else if (reallocParam) {
-      const [ruleId, labName] = reallocParam.split('::');
+      const parts   = reallocParam.split('::');
+      const ruleId  = parts[0];
+      const isCarve = parts[1] === 'carve';
+      const labName = isCarve ? parts[2] : parts[1];
       if (ruleId === `acct_${accountId}`) {
         // Whole-account split: every transaction, scaled to the lab's share
         // for the drilled month (splits can vary by month).
@@ -1581,14 +1663,29 @@ async function getPlDrillData(req, res) {
           shareNote = `Amounts shown are ${labName}'s ${+(share * 100).toFixed(1)}% share of each transaction.`;
         }
       } else {
-        const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);
-        const target = rule && (rule.targets.find(tg => tg.lab === labName) || rule.targets[0]);
-        if (target) {
+        const rule = TXN_REALLOCATIONS.find(r => r.id === ruleId);
+        if (rule) {
           transactions = transactions.filter(t => claimingRule(accountId, t.memo, t.name)?.id === ruleId);
-          if (target.share !== 1) {
-            transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
-            const pct = +(target.share * 100).toFixed(1); // 33.3, not 33
-            shareNote = `Amounts shown are ${target.lab}'s ${pct}% share of each transaction.`;
+          if (rule.carveMonthly) {
+            // Fixed monthly carve-out: the drilled month's matched total is
+            // split into carve (up to carveMonthly) and remainder pools; scale
+            // every claimed transaction to this row's slice of its pool.
+            const total  = transactions.reduce((s, t) => s + t.amount, 0);
+            const carved = Math.max(0, Math.min(total, rule.carveMonthly));
+            const pool   = isCarve ? carved : total - carved;
+            const target = (isCarve ? rule.carveTargets : rule.targets).find(tg => tg.lab === labName);
+            const scale  = (total !== 0 && target) ? (pool * target.share) / total : 0;
+            transactions = transactions.map(t => ({ ...t, amount: +(t.amount * scale).toFixed(2) }));
+            shareNote = isCarve
+              ? `Amounts shown are ${labName}'s ${+(target.share * 100).toFixed(0)}% share of this month's $${rule.carveMonthly.toLocaleString()} carve-out.`
+              : `Amounts shown are ${labName}'s share of what remains after the $${rule.carveMonthly.toLocaleString()} monthly carve-out.`;
+          } else {
+            const target = rule.targets.find(tg => tg.lab === labName) || rule.targets[0];
+            if (target && target.share !== 1) {
+              transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
+              const pct = +(target.share * 100).toFixed(1); // 33.3, not 33
+              shareNote = `Amounts shown are ${target.lab}'s ${pct}% share of each transaction.`;
+            }
           }
         }
       }

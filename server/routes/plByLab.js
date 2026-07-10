@@ -650,6 +650,11 @@ function claimingRule(accountId, memo, name) {
   ) || null;
 }
 
+// Per-account status of the most recent reallocation fetch — exposed on
+// /api/pl-by-lab?reallocDebug=1 (auth-gated like the rest) for diagnosing
+// silently-degraded rules in prod.
+let lastReallocStatus = {};
+
 // Fetch per-transaction detail for every account that has reallocation rules
 // and bucket claimed amounts by month. Each transaction is claimed by at most
 // one rule (claimingRule) and distributed across that rule's targets by share.
@@ -662,6 +667,7 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
   const endDate   = months[months.length - 1].end;
 
   const byAccount = {};
+  lastReallocStatus = {};
   // Chunked: QBO throttles at ~10 concurrent requests per realm, and the main
   // P&L + forex calls run alongside these. Per-account try/catch so a single
   // failed report degrades only that account's rules instead of all of them.
@@ -686,7 +692,9 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
         }
         const list = [...entries.values()].filter(e => e.values.some(v => v !== 0));
         if (list.length) byAccount[accId] = list;
+        lastReallocStatus[accId] = `ok: ${txns.length} txns, ${list.length} moves`;
       } catch (err) {
+        lastReallocStatus[accId] = `error: ${JSON.stringify(err.response?.data || err.message).slice(0, 300)}`;
         console.error(`/api/pl-by-lab realloc fetch failed for account ${accId} (rows stay with source lab):`,
           err.response?.data || err.message);
       }
@@ -1375,6 +1383,7 @@ async function getPlByLabData(req, res) {
       months:           months.map(m => m.label),
       partialMonths,
       accountingMethod: am,
+      ...(req.query.reallocDebug === '1' ? { reallocStatus: lastReallocStatus } : {}),
       summary,
       buRows,
       fullPLRows,

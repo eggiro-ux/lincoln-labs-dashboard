@@ -236,6 +236,7 @@ function matchLab(text) {
   if (!text) return null;
   const t = text.toLowerCase();
   if (/awesome/.test(t))    return 'AwesomeAPI';
+  if (/caboodle/.test(t))   return 'Caboodle';  // acquired company, expenses-only lab for now
   if (/phantom/.test(t))    return 'Civille';   // Phantom Copy is a Civille sub-account
   if (/civille/.test(t))    return 'Civille';
   // Specific rent overrides — must come before the broad /lincoln/ catch
@@ -396,7 +397,117 @@ const TXN_REALLOCATIONS = [
       { lab: 'Apps',       share: 0.05, label: 'Atlassian — 5% Apps share (from Lincoln Labs)' },
     ],
   },
+  {
+    // "Anything Black Teak or Eric Hoopman related" splits 4 ways — this covers
+    // the PayPlug charge in the LL software account; the Exec Transportation
+    // instances are handled by the same-pattern rule on account 1150040026.
+    // LL's 25% stays as the natural remainder since this account is already LL.
+    id:        'hoopman_software',
+    accountId: '227',
+    memoMatch: /hoopman|black teak/i,
+    nameMatch: /black teak/i,
+    targets: [
+      { lab: 'Truss',      share: 0.25, label: 'Eric Hoopman / Black Teak — 25% Truss share (from Lincoln Labs)' },
+      { lab: 'AwesomeAPI', share: 0.25, label: 'Eric Hoopman / Black Teak — 25% AwesomeAPI share (from Lincoln Labs)' },
+      { lab: 'Civille',    share: 0.25, label: 'Eric Hoopman / Black Teak — 25% Civille share (from Lincoln Labs)' },
+    ],
+  },
+
+  // ── Gifts & Employee Morale (unassigned account 73) ─────────────────────────
+  {
+    id:        'gifts_uzbekistan',
+    accountId: '73',
+    memoMatch: /uzbekistan/i,            // Truss overseas-office events
+    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan team events (from Gifts & Morale)' }],
+  },
+  {
+    id:        'gifts_teleflora',
+    accountId: '73',
+    nameMatch: /teleflora/i,
+    memoMatch: /teleflora/i,
+    targets: [                           // per Eric 2026-07-10: 50/50 Civille & LL
+      { lab: 'Civille',      share: 0.5, label: 'Teleflora — 50% Civille share (from Gifts & Morale)' },
+      { lab: 'Lincoln Labs', share: 0.5, label: 'Teleflora — 50% share (from Gifts & Morale)' },
+    ],
+  },
+  {
+    id:        'gifts_julia',
+    accountId: '73',
+    memoMatch: /julia/i,                 // "anything with Julia goes to Truss"
+    targets:   [{ lab: 'Truss', share: 1, label: 'Julia Collins items (from Gifts & Morale)' }],
+  },
+
+  // ── Executive Transportation (unassigned account 1150040026) ────────────────
+  {
+    id:        'exec_531',
+    accountId: '1150040026',
+    nameMatch: /531 north main/i,
+    memoMatch: /funds transfer/i,
+    targets: [                           // per Eric 2026-07-10: even 4-way
+      { lab: 'Truss',        share: 0.25, label: '531 North Main transfers — 25% Truss share (from Exec Transportation)' },
+      { lab: 'Lincoln Labs', share: 0.25, label: '531 North Main transfers — 25% share (from Exec Transportation)' },
+      { lab: 'AwesomeAPI',   share: 0.25, label: '531 North Main transfers — 25% AwesomeAPI share (from Exec Transportation)' },
+      { lab: 'Civille',      share: 0.25, label: '531 North Main transfers — 25% Civille share (from Exec Transportation)' },
+    ],
+  },
+  {
+    id:        'exec_kadir',
+    accountId: '1150040026',
+    memoMatch: /kadir/i,                 // Kadir Fuzaylov is Truss staff
+    targets:   [{ lab: 'Truss', share: 1, label: 'Kadir Fuzaylov travel (from Exec Transportation)' }],
+  },
+  {
+    id:        'exec_hoopman',
+    accountId: '1150040026',
+    memoMatch: /hoopman|black teak/i,
+    nameMatch: /black teak/i,
+    targets: [                           // per Eric 2026-07-10: even 4-way
+      { lab: 'Truss',        share: 0.25, label: 'Eric Hoopman / Black Teak — 25% Truss share (from Exec Transportation)' },
+      { lab: 'Lincoln Labs', share: 0.25, label: 'Eric Hoopman / Black Teak — 25% share (from Exec Transportation)' },
+      { lab: 'AwesomeAPI',   share: 0.25, label: 'Eric Hoopman / Black Teak — 25% AwesomeAPI share (from Exec Transportation)' },
+      { lab: 'Civille',      share: 0.25, label: 'Eric Hoopman / Black Teak — 25% Civille share (from Exec Transportation)' },
+    ],
+  },
+
+  // ── Advertising & Marketing travel (unassigned account 1150040059) ──────────
+  {
+    id:        'advmkt_julia',
+    accountId: '1150040059',
+    memoMatch: /julia/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Julia Collins items (from Adv & Marketing)' }],
+  },
 ];
+
+// ── Whole-account splits ──────────────────────────────────────────────────────
+// Accounts whose ENTIRE balance divides across labs by fixed shares (no memo
+// matching needed, so no extra QBO fetch — the split applies directly to the
+// account's P&L month vector, which also covers accounts whose PLDetail drill
+// returns no line items). Shares per Eric 2026-07-10.
+const EVEN_4WAY = [
+  { lab: 'Civille',      share: 0.25 },
+  { lab: 'Truss',        share: 0.25 },
+  { lab: 'AwesomeAPI',   share: 0.25 },
+  { lab: 'Lincoln Labs', share: 0.25 },
+];
+const CIV_TRUSS_5050 = [
+  { lab: 'Civille', share: 0.5 },
+  { lab: 'Truss',   share: 0.5 },
+];
+const ACCOUNT_SPLITS = {
+  '6':  { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
+  '9':  { name: 'Interest Paid',            targets: CIV_TRUSS_5050 },
+  '11': { name: 'Meals & Entertainment',    targets: CIV_TRUSS_5050 },
+  '13': { name: 'Office Supplies',          targets: [{ lab: 'Civille', share: 1 }] },
+  '8':  { name: 'Insurance',                targets: EVEN_4WAY },
+  '10': { name: 'Legal & Professional',     targets: EVEN_4WAY },
+  '65': { name: 'QuickBooks Subscriptions', targets: EVEN_4WAY },
+};
+
+function acctSplitLabel(split, target) {
+  return target.share === 1
+    ? `${split.name} (shared account)`
+    : `${split.name} — ${+(target.share * 100).toFixed(1)}% ${target.lab} share`;
+}
 
 // First matching rule for this account + memo/vendor-name, or null. Single
 // source of truth for claim semantics — used by both the P&L aggregation and
@@ -547,7 +658,7 @@ function parsePL(pl, reallocByAccount) {
   const fullPLRows = [];
 
   // Per-lab row accumulators
-  const LAB_NAMES = ['Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs'];
+  const LAB_NAMES = ['Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs', 'Caboodle'];
   const labIncome   = {};
   const labCOGS     = {};
   const labExpenses = {};
@@ -605,7 +716,16 @@ function parsePL(pl, reallocByAccount) {
       // Transaction-level reallocations: subtract moved amounts from this row
       // and emit a companion row in each target lab. `realloc` tells the drill
       // which side of the split to show ('exclude' = source, rule id = target).
-      const moves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
+      // Whole-account splits (ACCOUNT_SPLITS) ride the same pipeline, with the
+      // split computed directly from the account's month vector.
+      const acctSplit  = accountId && ACCOUNT_SPLITS[String(accountId)];
+      const acctMoves  = acctSplit ? acctSplit.targets.map(tg => ({
+        rule:   { id: `acct_${accountId}` },
+        target: { ...tg, label: acctSplitLabel(acctSplit, tg) },
+        values: vals.map(v => v * tg.share),
+      })) : [];
+      const txnMoves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
+      const moves    = acctMoves.concat(txnMoves);
       const expVals = moves.length
         ? vals.map((v, i) => moves.reduce((acc, m) => acc - m.values[i], v))
         : vals;
@@ -851,6 +971,7 @@ function parsePL(pl, reallocByAccount) {
   const awesomeRev        = sumRows(labIncome['AwesomeAPI'] || []);
   const appsRev           = sumRows(labIncome['Apps'] || []);
   const llRev             = sumRows(labIncome['Lincoln Labs'] || []);
+  const caboodleRev       = sumRows(labIncome['Caboodle'] || []);
   const otherRev      = sumRows(unassignedIncome);
   const otherRevTotal = otherRev.reduce((a, b) => a + b, 0);
 
@@ -862,15 +983,16 @@ function parsePL(pl, reallocByAccount) {
   const awesomeBU = makeRevRow('AwesomeAPI', awesomeRev, labCOGS['AwesomeAPI'] || [], labExpenses['AwesomeAPI'] || []);
   const appsBU    = makeRevRow('Apps', appsRev, labCOGS['Apps'] || [], labExpenses['Apps'] || []);
   const llBU      = makeRevRow('Lincoln Labs Co.', llRev, labCOGS['Lincoln Labs'] || [], labExpenses['Lincoln Labs'] || []);
+  const caboodleBU = makeRevRow('Caboodle', caboodleRev, labCOGS['Caboodle'] || [], labExpenses['Caboodle'] || []);
 
   // Unassigned / Other is a true catch-all: its net income = total P&L net income minus
   // the sum of the five named labs. This ensures the BU table always reconciles to the
   // actual P&L bottom line, capturing exchange gain/loss and any other items that don't
   // map cleanly to a specific lab.
   const totalPLNetIncome   = netIncome.reduce((a, b) => a + b, 0);
-  const fiveLabsNetIncome  = civBU.netIncome + trussBU.netIncome + awesomeBU.netIncome
-                           + appsBU.netIncome + llBU.netIncome;
-  const unassignedResidual = totalPLNetIncome - fiveLabsNetIncome;
+  const namedLabsNetIncome = civBU.netIncome + trussBU.netIncome + awesomeBU.netIncome
+                           + appsBU.netIncome + llBU.netIncome + caboodleBU.netIncome;
+  const unassignedResidual = totalPLNetIncome - namedLabsNetIncome;
   const unassignedResidualMarginPct = otherRevTotal
     ? parseFloat((unassignedResidual / otherRevTotal * 100).toFixed(1)) : null;
 
@@ -880,6 +1002,7 @@ function parsePL(pl, reallocByAccount) {
     awesomeBU,
     appsBU,
     llBU,
+    caboodleBU,
     { name: 'Unassigned / Other', monthRevenue: otherRev, totalRevenue: otherRevTotal,
       totalCOGS: 0, grossProfit: otherRevTotal, gmPct: null,
       totalExpenses: unassignedExpForBU,
@@ -1048,6 +1171,7 @@ function parsePL(pl, reallocByAccount) {
     'AwesomeAPI':   { subtitle: null, kpis: labKPIs('AwesomeAPI'),   rows: buildLabRows('AwesomeAPI')  },
     'Apps':         { subtitle: null, kpis: labKPIs('Apps'),         rows: buildLabRows('Apps')        },
     'Lincoln Labs': { subtitle: null, kpis: labKPIs('Lincoln Labs'), rows: buildLabRows('Lincoln Labs')},
+    'Caboodle':     { subtitle: 'Recently acquired — expenses only for now', kpis: labKPIs('Caboodle'), rows: buildLabRows('Caboodle') },
   };
 
   // ── Unassigned ─────────────────────────────────────────────────────────────
@@ -1281,14 +1405,24 @@ async function getPlDrillData(req, res) {
       if (hasRemainder) shareNote = 'Split transactions are shown at the share remaining with this account.';
     } else if (reallocParam) {
       const [ruleId, labName] = reallocParam.split('::');
-      const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);
-      const target = rule && (rule.targets.find(tg => tg.lab === labName) || rule.targets[0]);
-      if (target) {
-        transactions = transactions.filter(t => claimingRule(accountId, t.memo, t.name)?.id === ruleId);
-        if (target.share !== 1) {
+      if (ruleId === `acct_${accountId}`) {
+        // Whole-account split: every transaction, scaled to the lab's share.
+        const split  = ACCOUNT_SPLITS[String(accountId)];
+        const target = split && split.targets.find(tg => tg.lab === labName);
+        if (target && target.share !== 1) {
           transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
-          const pct = +(target.share * 100).toFixed(1); // 33.3, not 33
-          shareNote = `Amounts shown are ${target.lab}'s ${pct}% share of each transaction.`;
+          shareNote = `Amounts shown are ${target.lab}'s ${+(target.share * 100).toFixed(1)}% share of each transaction.`;
+        }
+      } else {
+        const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);
+        const target = rule && (rule.targets.find(tg => tg.lab === labName) || rule.targets[0]);
+        if (target) {
+          transactions = transactions.filter(t => claimingRule(accountId, t.memo, t.name)?.id === ruleId);
+          if (target.share !== 1) {
+            transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
+            const pct = +(target.share * 100).toFixed(1); // 33.3, not 33
+            shareNote = `Amounts shown are ${target.lab}'s ${pct}% share of each transaction.`;
+          }
         }
       }
     }

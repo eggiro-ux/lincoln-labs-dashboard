@@ -417,10 +417,11 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     'AwesomeAPI':   '#eab308',
     'Apps':         '#f97316',
     'Lincoln Labs': '#06b6d4',
+    'Caboodle':     '#ec4899',
     'Unassigned':   '#7a7870',
   };
 
-  const TABS = ['Overview', 'Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs Co.', 'Unassigned'];
+  const TABS = ['Overview', 'Civille', 'Truss', 'AwesomeAPI', 'Apps', 'Lincoln Labs Co.', 'Caboodle', 'Unassigned'];
 
   // ── Default date range helpers ────────────────────────────────────────────
   function defaultDateRange() {
@@ -585,6 +586,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       case 'AwesomeAPI':       el.innerHTML = renderLabTab('AwesomeAPI'); break;
       case 'Apps':             el.innerHTML = renderLabTab('Apps'); break;
       case 'Lincoln Labs Co.': el.innerHTML = renderLabTab('Lincoln Labs'); break;
+      case 'Caboodle':         el.innerHTML = renderLabTab('Caboodle'); break;
       case 'Unassigned':       el.innerHTML = renderUnassignedTab(); break;
       default:                 el.innerHTML = '<div class="state-msg">Tab not found.</div>';
     }

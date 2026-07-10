@@ -662,25 +662,36 @@ async function fetchTxnReallocations(accessToken, realmId, months, am) {
   const endDate   = months[months.length - 1].end;
 
   const byAccount = {};
-  await Promise.all(accountIds.map(async (accId) => {
-    const report  = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
-    const txns    = parseTransactionReport(report, accId);
-    const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
-    for (const t of txns) {
-      const rule = claimingRule(accId, t.memo, t.name);
-      if (!rule) continue;
-      const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
-      if (mi < 0) continue;
-      for (const target of rule.targets) {
-        const key = `${rule.id}::${target.lab}`;
-        let e = entries.get(key);
-        if (!e) { e = { rule, target, values: months.map(() => 0) }; entries.set(key, e); }
-        e.values[mi] += t.amount * target.share;
+  // Chunked: QBO throttles at ~10 concurrent requests per realm, and the main
+  // P&L + forex calls run alongside these. Per-account try/catch so a single
+  // failed report degrades only that account's rules instead of all of them.
+  const CHUNK = 3;
+  for (let i = 0; i < accountIds.length; i += CHUNK) {
+    await Promise.all(accountIds.slice(i, i + CHUNK).map(async (accId) => {
+      try {
+        const report  = await fetchPLDetail(accessToken, realmId, accId, startDate, endDate, am);
+        const txns    = parseTransactionReport(report, accId);
+        const entries = new Map(); // `${rule.id}::${lab}` → { rule, target, values }
+        for (const t of txns) {
+          const rule = claimingRule(accId, t.memo, t.name);
+          if (!rule) continue;
+          const mi = months.findIndex(m => t.date >= m.start && t.date <= m.end);
+          if (mi < 0) continue;
+          for (const target of rule.targets) {
+            const key = `${rule.id}::${target.lab}`;
+            let e = entries.get(key);
+            if (!e) { e = { rule, target, values: months.map(() => 0) }; entries.set(key, e); }
+            e.values[mi] += t.amount * target.share;
+          }
+        }
+        const list = [...entries.values()].filter(e => e.values.some(v => v !== 0));
+        if (list.length) byAccount[accId] = list;
+      } catch (err) {
+        console.error(`/api/pl-by-lab realloc fetch failed for account ${accId} (rows stay with source lab):`,
+          err.response?.data || err.message);
       }
-    }
-    const list = [...entries.values()].filter(e => e.values.some(v => v !== 0));
-    if (list.length) byAccount[accId] = list;
-  }));
+    }));
+  }
   return Object.keys(byAccount).length ? byAccount : null;
 }
 

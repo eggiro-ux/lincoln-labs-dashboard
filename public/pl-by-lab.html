@@ -723,7 +723,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
   }
 
   function escH(s) {
-    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   // ── KPI strip builder ──────────────────────────────────────────────────────
@@ -1148,7 +1148,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <td>${escH(t.type)}</td>
         <td style="color:var(--muted)">${escH(t.num)}</td>
         <td>${escH(t.name)}</td>
-        <td style="color:var(--muted);font-style:italic;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(t.memo)}</td>
+        <td title="${escH(t.memo)}" style="color:var(--muted);font-style:italic;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escH(t.memo)}</td>
         <td class="r">${fmtDollar(t.amount)}</td>
       </tr>`).join('');
 

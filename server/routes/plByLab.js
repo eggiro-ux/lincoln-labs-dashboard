@@ -493,20 +493,58 @@ const CIV_TRUSS_5050 = [
   { lab: 'Civille', share: 0.5 },
   { lab: 'Truss',   share: 0.5 },
 ];
+// LL payroll (accounts 86/90/147/135) splits by month, derived from Gusto
+// per-employee gross pay (verified to the cent against the QBO wage JEs,
+// 2026-07-10). People in the LL payroll bucket and their lab weights per Eric:
+// Eric Giroux 35/35/20/3/7 Civ/Truss/Awesome/Apps/LL, Danil Shingarev
+// 25/25/20/0/30, Laura Van Brocklin (left Mar) and Ella Roux 100% Civille.
+// Sidecar accounts (taxes/health/dental) follow the wage proportions.
+// FALLBACK covers months with no entry (Jul 2026+): current roster (Eric +
+// Danil) at June comp levels. Regenerate when the LL payroll roster changes.
+const LL_PAYROLL_MONTHLY = {
+  '2026-01': [{ lab: 'Civille', share: 0.389187 }, { lab: 'Truss', share: 0.273078 }, { lab: 'AwesomeAPI', share: 0.176778 }, { lab: 'Apps', share: 0.015631 }, { lab: 'Lincoln Labs', share: 0.145326 }],
+  '2026-02': [{ lab: 'Civille', share: 0.395847 }, { lab: 'Truss', share: 0.268293 }, { lab: 'AwesomeAPI', share: 0.174489 }, { lab: 'Apps', share: 0.015055 }, { lab: 'Lincoln Labs', share: 0.146316 }],
+  '2026-03': [{ lab: 'Civille', share: 0.343138 }, { lab: 'Truss', share: 0.300213 }, { lab: 'AwesomeAPI', share: 0.191415 }, { lab: 'Apps', share: 0.018283 }, { lab: 'Lincoln Labs', share: 0.146951 }],
+  '2026-04': [{ lab: 'Civille', share: 0.320470 }, { lab: 'Truss', share: 0.320470 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.021141 }, { lab: 'Lincoln Labs', share: 0.137919 }],
+  '2026-05': [{ lab: 'Civille', share: 0.312349 }, { lab: 'Truss', share: 0.312349 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018705 }, { lab: 'Lincoln Labs', share: 0.156597 }],
+  '2026-06': [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.310736 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018221 }, { lab: 'Lincoln Labs', share: 0.160307 }],
+};
+const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.310736 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018221 }, { lab: 'Lincoln Labs', share: 0.160307 }];
+
 const ACCOUNT_SPLITS = {
-  '6':  { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
-  '9':  { name: 'Interest Paid',            targets: CIV_TRUSS_5050 },
-  '11': { name: 'Meals & Entertainment',    targets: CIV_TRUSS_5050 },
-  '13': { name: 'Office Supplies',          targets: [{ lab: 'Civille', share: 1 }] },
-  '8':  { name: 'Insurance',                targets: EVEN_4WAY },
-  '10': { name: 'Legal & Professional',     targets: EVEN_4WAY },
-  '65': { name: 'QuickBooks Subscriptions', targets: EVEN_4WAY },
+  '6':   { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
+  '9':   { name: 'Interest Paid',            targets: CIV_TRUSS_5050 },
+  '11':  { name: 'Meals & Entertainment',    targets: CIV_TRUSS_5050 },
+  '13':  { name: 'Office Supplies',          targets: [{ lab: 'Civille', share: 1 }] },
+  '8':   { name: 'Insurance',                targets: EVEN_4WAY },
+  '10':  { name: 'Legal & Professional',     targets: EVEN_4WAY },
+  '65':  { name: 'QuickBooks Subscriptions', targets: EVEN_4WAY },
+  '86':  { name: 'Payroll Wages',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
+  '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
+  '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
+  '135': { name: 'Dental & Vision',          targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
 };
 
-function acctSplitLabel(split, target) {
-  return target.share === 1
+// Union of labs a split can route to (monthly lists may differ from fallback).
+function acctSplitLabs(split) {
+  const labs = new Set((split.targets || []).map(t => t.lab));
+  Object.values(split.monthlyTargets || {}).forEach(list => list.forEach(t => labs.add(t.lab)));
+  return [...labs];
+}
+
+// Share for a lab in a given YYYY-MM month (monthly entry wins over fallback).
+function acctShareFor(split, monthKey, lab) {
+  const list = (split.monthlyTargets && split.monthlyTargets[monthKey]) || split.targets || [];
+  const t = list.find(x => x.lab === lab);
+  return t ? t.share : 0;
+}
+
+function acctSplitLabel(split, lab) {
+  if (split.monthlyTargets) return `${split.name} — ${lab} share (Gusto-derived)`;
+  const share = acctShareFor(split, '', lab);
+  return share === 1
     ? `${split.name} (shared account)`
-    : `${split.name} — ${+(target.share * 100).toFixed(1)}% ${target.lab} share`;
+    : `${split.name} — ${+(share * 100).toFixed(1)}% ${lab} share`;
 }
 
 // First matching rule for this account + memo/vendor-name, or null. Single
@@ -648,6 +686,8 @@ function parsePL(pl, reallocByAccount) {
 
   const N = monthCols.length;
   const zero = () => Array(N).fill(0);
+  // YYYY-MM key per month column — used for month-varying account splits
+  const monthKeys = monthCols.map(c => (c.startDate || '').substring(0, 7));
 
   const getVals = (colData) =>
     monthCols.map(col => parseFloat(colData[col.idx + colDataOffset]?.value || '0'));
@@ -719,10 +759,10 @@ function parsePL(pl, reallocByAccount) {
       // Whole-account splits (ACCOUNT_SPLITS) ride the same pipeline, with the
       // split computed directly from the account's month vector.
       const acctSplit  = accountId && ACCOUNT_SPLITS[String(accountId)];
-      const acctMoves  = acctSplit ? acctSplit.targets.map(tg => ({
+      const acctMoves  = acctSplit ? acctSplitLabs(acctSplit).map(lab => ({
         rule:   { id: `acct_${accountId}` },
-        target: { ...tg, label: acctSplitLabel(acctSplit, tg) },
-        values: vals.map(v => v * tg.share),
+        target: { lab, label: acctSplitLabel(acctSplit, lab) },
+        values: vals.map((v, i) => v * acctShareFor(acctSplit, monthKeys[i], lab)),
       })) : [];
       const txnMoves = (accountId && reallocByAccount && reallocByAccount[String(accountId)]) || [];
       const moves    = acctMoves.concat(txnMoves);
@@ -1406,12 +1446,13 @@ async function getPlDrillData(req, res) {
     } else if (reallocParam) {
       const [ruleId, labName] = reallocParam.split('::');
       if (ruleId === `acct_${accountId}`) {
-        // Whole-account split: every transaction, scaled to the lab's share.
-        const split  = ACCOUNT_SPLITS[String(accountId)];
-        const target = split && split.targets.find(tg => tg.lab === labName);
-        if (target && target.share !== 1) {
-          transactions = transactions.map(t => ({ ...t, amount: +(t.amount * target.share).toFixed(2) }));
-          shareNote = `Amounts shown are ${target.lab}'s ${+(target.share * 100).toFixed(1)}% share of each transaction.`;
+        // Whole-account split: every transaction, scaled to the lab's share
+        // for the drilled month (splits can vary by month).
+        const split = ACCOUNT_SPLITS[String(accountId)];
+        const share = split ? acctShareFor(split, String(startDate).substring(0, 7), labName) : 0;
+        if (split && share !== 1) {
+          transactions = transactions.map(t => ({ ...t, amount: +(t.amount * share).toFixed(2) }));
+          shareNote = `Amounts shown are ${labName}'s ${+(share * 100).toFixed(1)}% share of each transaction.`;
         }
       } else {
         const rule   = TXN_REALLOCATIONS.find(r => r.id === ruleId);

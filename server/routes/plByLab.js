@@ -664,16 +664,31 @@ const LL_PAYROLL_MONTHLY = {
 const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.208896 }];
 
 // Uzbekistan internal-team payroll (QBO "Truss - Team Salaries", acct 151) is
-// NOT all Truss — per the June 2026 International Accounting sheet, per-person
-// business units give: Civille $23,496 / Truss $16,049 / AwesomeAPI $6,995 /
-// Lincoln Labs $1,858 of $48,398 gross. Applied as fixed proportions.
-// Refresh from the latest month's sheet when the Uzbekistan roster shifts.
-const UZBEK_TEAM_SPLIT = [
+// NOT all Truss — per-person business units from the monthly International
+// Accounting sheets. Feb 2026 sheet (gross $39,849): Civille 52.7% / Truss
+// 30.4% / AwesomeAPI 16.9%, no LL. June sheet (gross $48,398): Civille 48.5% /
+// Truss 33.2% / AwesomeAPI 14.5% / LL 3.8% (Asal Buriyeva, BrashApps, hired
+// Jun). Feb shares cover Jan–Mar, June shares Apr onward; refresh from newer
+// sheets as the roster shifts.
+const UZBEK_TEAM_FEB = [
+  { lab: 'Civille',      share: 0.527291 },
+  { lab: 'Truss',        share: 0.304148 },
+  { lab: 'AwesomeAPI',   share: 0.168561 },
+];
+const UZBEK_TEAM_JUN = [
   { lab: 'Civille',      share: 0.485475 },
   { lab: 'Truss',        share: 0.331605 },
   { lab: 'AwesomeAPI',   share: 0.144531 },
-  { lab: 'Lincoln Labs', share: 0.038389 },  // Asal Buriyeva (BrashApps)
+  { lab: 'Lincoln Labs', share: 0.038389 },
 ];
+const UZBEK_TEAM_MONTHLY = {
+  '2026-01': UZBEK_TEAM_FEB,
+  '2026-02': UZBEK_TEAM_FEB,
+  '2026-03': UZBEK_TEAM_FEB,
+  '2026-04': UZBEK_TEAM_JUN,
+  '2026-05': UZBEK_TEAM_JUN,
+  '2026-06': UZBEK_TEAM_JUN,
+};
 
 const ACCOUNT_SPLITS = {
   '6':   { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
@@ -688,7 +703,7 @@ const ACCOUNT_SPLITS = {
   '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '135': { name: 'Dental & Vision',          targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
-  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_SPLIT },
+  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_JUN, monthlyTargets: UZBEK_TEAM_MONTHLY },
   // Overseas office rent: Civille takes 20%, the remaining 80% stays with
   // Truss (the account's native lab) as the split remainder.
   '1150040017': { name: 'Overseas Rent & Utilities', targets: [{ lab: 'Civille', share: 0.20 }] },

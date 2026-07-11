@@ -577,9 +577,9 @@ const TXN_REALLOCATIONS = [
     memoMatch:    /mellow|solar staff/i,
     nameMatch:    /solar staff/i,
     carveMonthly: 5500,
-    carveTargets: [
-      { lab: 'Civille',      share: 0.30, label: 'Egor Blajenov — 30% Civille share (from Offshore Labor)' },
-      { lab: 'Truss',        share: 0.20, label: 'Egor Blajenov — 20% Truss share (from Offshore Labor)' },
+    carveTargets: [                      // 2026-07-11: Truss 20→15, Civille 30→35
+      { lab: 'Civille',      share: 0.35, label: 'Egor Blajenov — 35% Civille share (from Offshore Labor)' },
+      { lab: 'Truss',        share: 0.15, label: 'Egor Blajenov — 15% Truss share (from Offshore Labor)' },
       { lab: 'Apps',         share: 0.10, label: 'Egor Blajenov — 10% Apps share (from Offshore Labor)' },
       { lab: 'AwesomeAPI',   share: 0.10, label: 'Egor Blajenov — 10% AwesomeAPI share (from Offshore Labor)' },
       { lab: 'Lincoln Labs', share: 0.30, label: 'Egor Blajenov — 30% share (from Offshore Labor)' },
@@ -651,15 +651,29 @@ const EVEN_5WAY = [                      // all labs except Caboodle
 // Sidecar accounts (taxes/health/dental) follow the wage proportions.
 // FALLBACK covers months with no entry (Jul 2026+): current roster (Eric +
 // Danil) at June comp levels. Regenerate when the LL payroll roster changes.
+// Regenerated 2026-07-11: Eric's weights now 35/25/20/5/15 Civ/Truss/AAPI/Apps/LL
+// (was 35/35/20/3/7). Danil, Laura, Ella weights unchanged.
 const LL_PAYROLL_MONTHLY = {
-  '2026-01': [{ lab: 'Civille', share: 0.389187 }, { lab: 'Truss', share: 0.273078 }, { lab: 'AwesomeAPI', share: 0.176778 }, { lab: 'Apps', share: 0.015631 }, { lab: 'Lincoln Labs', share: 0.145326 }],
-  '2026-02': [{ lab: 'Civille', share: 0.395847 }, { lab: 'Truss', share: 0.268293 }, { lab: 'AwesomeAPI', share: 0.174489 }, { lab: 'Apps', share: 0.015055 }, { lab: 'Lincoln Labs', share: 0.146316 }],
-  '2026-03': [{ lab: 'Civille', share: 0.343138 }, { lab: 'Truss', share: 0.300213 }, { lab: 'AwesomeAPI', share: 0.191415 }, { lab: 'Apps', share: 0.018283 }, { lab: 'Lincoln Labs', share: 0.146951 }],
-  '2026-04': [{ lab: 'Civille', share: 0.320470 }, { lab: 'Truss', share: 0.320470 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.021141 }, { lab: 'Lincoln Labs', share: 0.137919 }],
-  '2026-05': [{ lab: 'Civille', share: 0.312349 }, { lab: 'Truss', share: 0.312349 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018705 }, { lab: 'Lincoln Labs', share: 0.156597 }],
-  '2026-06': [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.310736 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018221 }, { lab: 'Lincoln Labs', share: 0.160307 }],
+  '2026-01': [{ lab: 'Civille', share: 0.389187 }, { lab: 'Truss', share: 0.220973 }, { lab: 'AwesomeAPI', share: 0.176778 }, { lab: 'Apps', share: 0.026052 }, { lab: 'Lincoln Labs', share: 0.187010 }],
+  '2026-02': [{ lab: 'Civille', share: 0.395847 }, { lab: 'Truss', share: 0.218112 }, { lab: 'AwesomeAPI', share: 0.174489 }, { lab: 'Apps', share: 0.025091 }, { lab: 'Lincoln Labs', share: 0.186461 }],
+  '2026-03': [{ lab: 'Civille', share: 0.343138 }, { lab: 'Truss', share: 0.239269 }, { lab: 'AwesomeAPI', share: 0.191415 }, { lab: 'Apps', share: 0.030472 }, { lab: 'Lincoln Labs', share: 0.195706 }],
+  '2026-04': [{ lab: 'Civille', share: 0.320470 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.035235 }, { lab: 'Lincoln Labs', share: 0.194295 }],
+  '2026-05': [{ lab: 'Civille', share: 0.312349 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.031175 }, { lab: 'Lincoln Labs', share: 0.206476 }],
+  '2026-06': [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.208896 }],
 };
-const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.310736 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.018221 }, { lab: 'Lincoln Labs', share: 0.160307 }];
+const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.208896 }];
+
+// Uzbekistan internal-team payroll (QBO "Truss - Team Salaries", acct 151) is
+// NOT all Truss — per the June 2026 International Accounting sheet, per-person
+// business units give: Civille $23,496 / Truss $16,049 / AwesomeAPI $6,995 /
+// Lincoln Labs $1,858 of $48,398 gross. Applied as fixed proportions.
+// Refresh from the latest month's sheet when the Uzbekistan roster shifts.
+const UZBEK_TEAM_SPLIT = [
+  { lab: 'Civille',      share: 0.485475 },
+  { lab: 'Truss',        share: 0.331605 },
+  { lab: 'AwesomeAPI',   share: 0.144531 },
+  { lab: 'Lincoln Labs', share: 0.038389 },  // Asal Buriyeva (BrashApps)
+];
 
 const ACCOUNT_SPLITS = {
   '6':   { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
@@ -674,6 +688,10 @@ const ACCOUNT_SPLITS = {
   '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '135': { name: 'Dental & Vision',          targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
+  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_SPLIT },
+  // Overseas office rent: Civille takes 20%, the remaining 80% stays with
+  // Truss (the account's native lab) as the split remainder.
+  '1150040017': { name: 'Overseas Rent & Utilities', targets: [{ lab: 'Civille', share: 0.20 }] },
 };
 
 // Union of labs a split can route to (monthly lists may differ from fallback).
@@ -1651,7 +1669,7 @@ async function getPlDrillData(req, res) {
       // Fully-claimed transactions disappear; partially-claimed ones (rules
       // whose target shares sum to < 1) stay at the share left with this lab.
       let hasRemainder = false;
-      const kept = [];
+      let kept = [];
       for (const t of transactions) {
         const rule = claimingRule(accountId, t.memo, t.name);
         if (!rule) { kept.push(t); continue; }
@@ -1661,8 +1679,24 @@ async function getPlDrillData(req, res) {
           hasRemainder = true;
         }
       }
+      // Whole-account splits with shares summing to < 1 leave a remainder on
+      // this row too — scale every kept transaction by it (a full split means
+      // the source row is zero and has no drill cell anyway).
+      const split = ACCOUNT_SPLITS[String(accountId)];
+      if (split) {
+        const monthKey = String(startDate).substring(0, 7);
+        const list = (split.monthlyTargets && split.monthlyTargets[monthKey]) || split.targets || [];
+        const splitRemainder = 1 - list.reduce((s, tg) => s + tg.share, 0);
+        if (splitRemainder < 1 - 1e-9) {
+          kept = splitRemainder > 1e-9
+            ? kept.map(t => ({ ...t, amount: +(t.amount * splitRemainder).toFixed(2) }))
+            : [];
+          shareNote = `Amounts shown are the ${+(splitRemainder * 100).toFixed(1)}% share remaining with this account.`;
+        }
+      } else if (hasRemainder) {
+        shareNote = 'Split transactions are shown at the share remaining with this account.';
+      }
       transactions = kept;
-      if (hasRemainder) shareNote = 'Split transactions are shown at the share remaining with this account.';
     } else if (reallocParam) {
       const parts   = reallocParam.split('::');
       const ruleId  = parts[0];

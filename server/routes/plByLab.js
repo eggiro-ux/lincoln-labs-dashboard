@@ -1015,12 +1015,16 @@ function parsePL(pl, reallocByAccount) {
     const lab = (accountId && ACCOUNT_LAB[String(accountId)])
       || matchLab(displayLabel) || matchLab(parentSectionName) || matchLab(rowLabel);
     if (topSectionType === 'income') {
-      // Unmatched income defaults to Lincoln Labs (catch-all for misc. company income)
-      const incLab = lab || 'Lincoln Labs';
-      labIncome[incLab] = labIncome[incLab] || [];
-      labIncome[incLab].push({ label: displayLabel, values: vals, accountId });
-      if (buRevByMonth[incLab]) {
-        for (let i = 0; i < N; i++) buRevByMonth[incLab][i] += vals[i];
+      if (lab) {
+        labIncome[lab] = labIncome[lab] || [];
+        labIncome[lab].push({ label: displayLabel, values: vals, accountId });
+        if (buRevByMonth[lab]) {
+          for (let i = 0; i < N; i++) buRevByMonth[lab][i] += vals[i];
+        }
+      } else {
+        // Unmatched income surfaces on the Unassigned tab for categorization
+        // (it used to default silently to Lincoln Labs).
+        unassignedIncome.push({ label: displayLabel, values: vals, accountId });
       }
       for (let i = 0; i < N; i++) sumIncome[i] += vals[i];
       return;

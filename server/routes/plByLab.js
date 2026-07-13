@@ -587,12 +587,46 @@ const TXN_REALLOCATIONS = [
     targets: [{ lab: 'Truss', share: 1, label: 'Mellow / Solar Staff payroll, ex-Egor (from Offshore Labor)' }],
   },
   {
-    // Uzbekistan (and the zero-net Georgia entries) — Truss overseas payroll,
-    // consistent with every other Uzbekistan item.
+    // Uzbekistan payroll/expense wires in the LL offshore account — Truss.
+    // (The internal Uzbek team salaries account 151 has its own roster split.)
     id:        'offshore_uzbekistan',
     accountId: '82',
-    memoMatch: /uzbekistan|georgia/i,
-    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan & Georgia payroll (from Offshore Labor)' }],
+    memoMatch: /uzbekistan/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan payroll (from Offshore Labor)' }],
+  },
+  {
+    // Georgia internal payroll — per the July 2026 International Accounting
+    // sheet (June payroll): Temuraz + Ketevan (Truss Admin) 63.5%, Stepan
+    // Ustinov (AwesomeAPI) 27.0%, Zurab Toidze (Civille) 9.5% of 32,281 GEL.
+    // Client payroll flows through the Truss pass-through accounts, not here.
+    id:        'offshore_georgia',
+    accountId: '82',
+    memoMatch: /georgia/i,
+    targets: [
+      { lab: 'Truss',      share: 0.634967, label: 'Georgia payroll — 63.5% Truss share (from Offshore Labor)' },
+      { lab: 'AwesomeAPI', share: 0.270193, label: 'Georgia payroll — 27.0% AwesomeAPI share (from Offshore Labor)' },
+      { lab: 'Civille',    share: 0.094840, label: 'Georgia payroll — 9.5% Civille share (from Offshore Labor)' },
+    ],
+  },
+  {
+    // Kazakhstan internal payroll — per the same sheet: Artem Panov 76.8%
+    // AwesomeAPI + 19.2% Lincoln Apps (Apps lab), Ekaterina Kassumova 4.0%
+    // Truss Admin, of $5,660 gross.
+    id:        'offshore_kazakhstan',
+    accountId: '82',
+    memoMatch: /kazakh/i,
+    targets: [
+      { lab: 'AwesomeAPI', share: 0.768293, label: 'Kazakhstan payroll — 76.8% AwesomeAPI share (from Offshore Labor)' },
+      { lab: 'Apps',       share: 0.192073, label: 'Kazakhstan payroll — 19.2% Apps share (from Offshore Labor)' },
+      { lab: 'Truss',      share: 0.039634, label: 'Kazakhstan payroll — 4.0% Truss share (from Offshore Labor)' },
+    ],
+  },
+  {
+    // Remofirst / inDrive rosters are 100% Truss-client pass-through.
+    id:        'offshore_remofirst',
+    accountId: '82',
+    memoMatch: /remofirst|indrive/i,
+    targets:   [{ lab: 'Truss', share: 1, label: 'Remofirst / inDrive payroll (from Offshore Labor)' }],
   },
   {
     // Suan Galibert is part of Hoopman's distributions — same 25/25/25/20/5

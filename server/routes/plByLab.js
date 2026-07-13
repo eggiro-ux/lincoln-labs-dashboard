@@ -650,9 +650,11 @@ const TXN_REALLOCATIONS = [
 // Checked before matchLab, so these win over the name-based rules (the rent
 // accounts would otherwise route to Lincoln Labs). Per Eric 2026-07-10.
 const ACCOUNT_LAB = {
-  '98':         'Truss',    // Legal & Professional — Lincoln Labs sub-account
-  '1150040022': 'Civille',  // Rent — Back-Owed Rent
-  '1150040029': 'Civille',  // Rent — Office Rent - Kansas
+  '98':         'Truss',        // Legal & Professional — Lincoln Labs sub-account
+  '1150040022': 'Civille',      // Rent — Back-Owed Rent
+  '1150040029': 'Civille',      // Rent — Office Rent - Kansas
+  '154':        'Lincoln Labs', // Interest Income — treasury (Wise, Ramp, First Internet Bank)
+  '1150040039': 'Lincoln Labs', // Dividend Income — treasury (Ramp)
 };
 
 // ── Whole-account splits ──────────────────────────────────────────────────────

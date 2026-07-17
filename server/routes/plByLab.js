@@ -586,41 +586,12 @@ const TXN_REALLOCATIONS = [
     ],
     targets: [{ lab: 'Truss', share: 1, label: 'Mellow / Solar Staff payroll, ex-Egor (from Offshore Labor)' }],
   },
-  {
-    // Uzbekistan payroll/expense wires in the LL offshore account — Truss.
-    // (The internal Uzbek team salaries account 151 has its own roster split.)
-    id:        'offshore_uzbekistan',
-    accountId: '82',
-    memoMatch: /uzbekistan/i,
-    targets:   [{ lab: 'Truss', share: 1, label: 'Uzbekistan payroll (from Offshore Labor)' }],
-  },
-  {
-    // Georgia internal payroll — per the July 2026 International Accounting
-    // sheet (June payroll): Temuraz + Ketevan (Truss Admin) 63.5%, Stepan
-    // Ustinov (AwesomeAPI) 27.0%, Zurab Toidze (Civille) 9.5% of 32,281 GEL.
-    // Client payroll flows through the Truss pass-through accounts, not here.
-    id:        'offshore_georgia',
-    accountId: '82',
-    memoMatch: /georgia/i,
-    targets: [
-      { lab: 'Truss',      share: 0.634967, label: 'Georgia payroll — 63.5% Truss share (from Offshore Labor)' },
-      { lab: 'AwesomeAPI', share: 0.270193, label: 'Georgia payroll — 27.0% AwesomeAPI share (from Offshore Labor)' },
-      { lab: 'Civille',    share: 0.094840, label: 'Georgia payroll — 9.5% Civille share (from Offshore Labor)' },
-    ],
-  },
-  {
-    // Kazakhstan internal payroll — per the same sheet: Artem Panov 76.8%
-    // AwesomeAPI + 19.2% Lincoln Apps (Apps lab), Ekaterina Kassumova 4.0%
-    // Truss Admin, of $5,660 gross.
-    id:        'offshore_kazakhstan',
-    accountId: '82',
-    memoMatch: /kazakh/i,
-    targets: [
-      { lab: 'AwesomeAPI', share: 0.768293, label: 'Kazakhstan payroll — 76.8% AwesomeAPI share (from Offshore Labor)' },
-      { lab: 'Apps',       share: 0.192073, label: 'Kazakhstan payroll — 19.2% Apps share (from Offshore Labor)' },
-      { lab: 'Truss',      share: 0.039634, label: 'Kazakhstan payroll — 4.0% Truss share (from Offshore Labor)' },
-    ],
-  },
+  // (2026-07-18) The whole-country wires never hit account 82 — the bookkeeper
+  // books each lab's payroll share into its own offshore account (83 Civille,
+  // 84 AwesomeAPI, 151 Truss). What's left in 82 is genuinely Lincoln Labs':
+  // Asal Buriyeva's wages (memo "Uzbekistan - Payroll and Expenses", BU
+  // Lincoln Labs/BrashApps) plus true-ups, so no country splits apply here.
+  // Egor (Mellow carve) and Suan rules above remain per Eric's explicit calls.
   {
     // Remofirst / inDrive rosters are 100% Truss-client pass-through.
     id:        'offshore_remofirst',
@@ -717,41 +688,13 @@ const LL_PAYROLL_MONTHLY = {
 };
 const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.251841 }, { lab: 'Truss', share: 0.191104 }, { lab: 'AwesomeAPI', share: 0.160736 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.365951 }];
 
-// Uzbekistan internal-team payroll (QBO "Truss - Team Salaries", acct 151) is
-// NOT all Truss — per-person business units from the monthly International
-// Accounting sheets. Feb 2026 sheet (gross $39,849): Civille 52.7% / Truss
-// 30.4% / AwesomeAPI 16.9%, no LL. June sheet (gross $48,398): Civille 48.5% /
-// Truss 33.2% / AwesomeAPI 14.5% / LL 3.8% (Asal Buriyeva, BrashApps, hired
-// Jun). Feb shares cover Jan–Mar, June shares Apr onward; refresh from newer
-// sheets as the roster shifts.
-const UZBEK_TEAM_FEB = [
-  { lab: 'Civille',      share: 0.527291 },
-  { lab: 'Truss',        share: 0.304148 },
-  { lab: 'AwesomeAPI',   share: 0.168561 },
-];
-const UZBEK_TEAM_JUN = [
-  { lab: 'Civille',      share: 0.485475 },
-  { lab: 'Truss',        share: 0.331605 },
-  { lab: 'AwesomeAPI',   share: 0.144531 },
-  { lab: 'Lincoln Labs', share: 0.038389 },
-];
-// July onward: Kambar Kidiraliev + Abdurashid Abdullaev moved Civille → Truss
-// (Truss CMS) per the Eric x Hoopman Q2 review; Eric updated the July sheet.
-// The 2026-08 workbook will confirm these on the Aug 11 scheduled run.
-const UZBEK_TEAM_JUL = [
-  { lab: 'Civille',      share: 0.424501 },
-  { lab: 'Truss',        share: 0.392578 },
-  { lab: 'AwesomeAPI',   share: 0.144531 },
-  { lab: 'Lincoln Labs', share: 0.038390 },
-];
-const UZBEK_TEAM_MONTHLY = {
-  '2026-01': UZBEK_TEAM_FEB,
-  '2026-02': UZBEK_TEAM_FEB,
-  '2026-03': UZBEK_TEAM_FEB,
-  '2026-04': UZBEK_TEAM_JUN,
-  '2026-05': UZBEK_TEAM_JUN,
-  '2026-06': UZBEK_TEAM_JUN,
-};
+// NOTE (2026-07-18): the bookkeeper already allocates international payroll
+// by lab in QBO — Offshore Labor — Civille (83), — AwesomeAPI (84), Truss -
+// Team Salaries (151, the Truss share), with the LL/other remnants in 82.
+// The roster-share split of account 151 that briefly lived here (Jul 11–17)
+// double-counted Civille/AAPI/LL and has been removed; each per-lab account
+// verifies against the monthly International Accounting workbook's per-BU
+// sums (the monthly routine checks this).
 
 const ACCOUNT_SPLITS = {
   '6':   { name: 'Bank Charges & Fees',      targets: CIV_TRUSS_5050 },
@@ -771,7 +714,6 @@ const ACCOUNT_SPLITS = {
   '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '135': { name: 'Dental & Vision',          targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
-  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_JUL, monthlyTargets: UZBEK_TEAM_MONTHLY },
   // Overseas office rent: Civille takes 20%, the remaining 80% stays with
   // Truss (the account's native lab) as the split remainder.
   '1150040017': { name: 'Overseas Rent & Utilities', targets: [{ lab: 'Civille', share: 0.20 }] },
@@ -838,26 +780,31 @@ try {
 } catch (err) {
   console.error('intlRoster.json not loadable (drill roster disabled):', err.message);
 }
-const INTL_ROSTER_TABS = {
-  '151': ['uzbekistan'],                       // Uzbekistan Team Salaries
-  '82':  ['mellow', 'georgia', 'kazakhstan'],  // Offshore Labor — LL account
+// Each per-lab offshore account shows the roster rows whose Business Unit
+// belongs to that lab, across every country tab (the bookkeeper allocates
+// payroll to these accounts by BU, so the filter mirrors the books).
+const INTL_ROSTER_ACCOUNTS = {
+  '83':  ['civille'],                        // Offshore Labor — Civille
+  '84':  ['awesomeapi'],                     // Offshore Labor — AwesomeAPI
+  '151': ['truss'],                          // Truss - Team Salaries
+  '82':  ['lincoln labs', 'lincoln apps'],   // LL offshore (Asal, Egor)
 };
 
 // Pick the roster for the drilled month: the latest workbook month at or
 // before it, else the earliest available (roster months are sparse).
 function rosterFor(accountId, monthKey) {
-  const tabs = INTL_ROSTER_TABS[String(accountId)];
-  if (!tabs) return null;
+  const units = INTL_ROSTER_ACCOUNTS[String(accountId)];
+  if (!units) return null;
   const months = Object.keys(INTL_ROSTER).sort();
   if (!months.length) return null;
   let pick = null;
   for (const m of months) if (m <= monthKey) pick = m;
   if (!pick) pick = months[0];
   const sections = [];
-  for (const t of tabs) {
-    const rows = (INTL_ROSTER[pick] || {})[t];
-    if (rows && rows.length) {
-      sections.push({ title: t.charAt(0).toUpperCase() + t.slice(1), rows });
+  for (const [tab, rows] of Object.entries(INTL_ROSTER[pick] || {})) {
+    const matched = (rows || []).filter(r => units.includes(String(r.unit || '').toLowerCase()));
+    if (matched.length) {
+      sections.push({ title: tab.charAt(0).toUpperCase() + tab.slice(1), rows: matched });
     }
   }
   return sections.length ? { month: pick, sections } : null;

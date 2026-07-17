@@ -1536,7 +1536,45 @@ function parsePL(pl, reallocByAccount) {
     expenseRows: pureUntaggedExp,
   };
 
-  return { summary, buRows, fullPLRows, labs, unassigned, N,
+  // ── Conservation audit ─────────────────────────────────────────────────────
+  // Invariant: every account's total across the lab buckets + unassigned must
+  // equal the untouched full P&L. Catches double counts and dropped moves
+  // (e.g. a rule targeting a misspelled lab). Runs pre-forex-breakout, so a
+  // clean state is exactly zero mismatches. Exposed via ?reallocDebug=1.
+  const auditTruth = {};
+  for (const r of fullPLRows) {
+    if (r.accountId && r.values && r.type === 'row') {
+      auditTruth[r.accountId] = (auditTruth[r.accountId] || 0) + r.values.reduce((a, b) => a + b, 0);
+    }
+  }
+  const auditSide = {};
+  const auditAdd = rows => {
+    for (const r of rows || []) {
+      if (r.accountId && r.values) {
+        auditSide[r.accountId] = (auditSide[r.accountId] || 0) + r.values.reduce((a, b) => a + b, 0);
+      }
+    }
+  };
+  // Count only the buckets that actually render (LAB_NAMES + unassigned): a
+  // move routed to a misspelled lab lands in an invisible bucket, so counting
+  // displayed buckets only makes it surface here as a mismatch.
+  LAB_NAMES.forEach(l => { auditAdd(labIncome[l]); auditAdd(labCOGS[l]); auditAdd(labExpenses[l]); });
+  auditAdd(unassignedIncome);
+  auditAdd(unassignedExpenses);
+  const auditIds = new Set([...Object.keys(auditTruth), ...Object.keys(auditSide)]);
+  const auditMismatches = [];
+  for (const id of auditIds) {
+    const t = auditTruth[id] || 0, s = auditSide[id] || 0;
+    if (Math.abs(t - s) > 0.05) {
+      auditMismatches.push({ accountId: id, company: +t.toFixed(2), labs: +s.toFixed(2), diff: +(s - t).toFixed(2) });
+    }
+  }
+  const conservationAudit = { accountsChecked: auditIds.size, mismatches: auditMismatches };
+  if (auditMismatches.length) {
+    console.error('CONSERVATION AUDIT FAILED — lab totals do not reconcile to the company P&L:', JSON.stringify(auditMismatches));
+  }
+
+  return { summary, buRows, fullPLRows, labs, unassigned, N, conservationAudit,
     monthRanges: monthCols.map(c => ({ start: c.startDate, end: c.endDate })) };
 }
 
@@ -1570,7 +1608,7 @@ async function getPlByLabData(req, res) {
         return null;
       }),
     ]);
-    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges } = parsePL(pl, reallocations);
+    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges, conservationAudit } = parsePL(pl, reallocations);
 
     if (forexByMonth) breakOutForexRow(labs['Truss'], monthRanges, forexByMonth);
 
@@ -1580,7 +1618,7 @@ async function getPlByLabData(req, res) {
       months:           months.map(m => m.label),
       partialMonths,
       accountingMethod: am,
-      ...(req.query.reallocDebug === '1' ? { reallocStatus: lastReallocStatus } : {}),
+      ...(req.query.reallocDebug === '1' ? { reallocStatus: lastReallocStatus, conservationAudit } : {}),
       summary,
       buRows,
       fullPLRows,

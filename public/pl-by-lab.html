@@ -1230,18 +1230,22 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     for (const sec of roster.sections) {
       const cur = (sec.rows[0] && sec.rows[0].currency) || 'USD';
       const total = sec.rows.reduce((s, r) => s + (r.gross || 0), 0);
+      const anyApprox = sec.rows.some(r => r.approx);
       const rows = sec.rows.map(r => `
         <tr>
           <td>${escH(r.name)}</td>
           <td>${escH(r.unit)}</td>
           <td style="color:var(--muted)">${escH(r.team)}</td>
-          <td class="r">${(r.gross || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${cur !== 'USD' ? ' ' + escH(cur) : ''}</td>
+          <td class="r">${r.approx ? '≈' : ''}${(r.gross || 0).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}${cur !== 'USD' ? ' ' + escH(cur) : ''}</td>
         </tr>`).join('');
       html += `<table class="drill-txn-table" style="margin-top:2px">
-        <thead><tr><th>${escH(sec.title)}</th><th>Business Unit</th><th>Client / Team</th><th class="r">Gross${cur !== 'USD' ? ' (' + escH(cur) + ')' : ''}</th></tr></thead>
+        <thead><tr><th>${escH(sec.title)}</th><th>Business Unit</th><th>Client / Team</th><th class="r">Gross${cur !== 'USD' ? ' (' + escH(cur) + ')' : ' (USD)'}</th></tr></thead>
         <tbody>${rows}</tbody>
-        <tfoot><tr><td colspan="3">Total</td><td class="r">${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr></tfoot>
+        <tfoot><tr><td colspan="3">Total</td><td class="r">${anyApprox ? '≈' : ''}${total.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr></tfoot>
       </table>`;
+      if (anyApprox) {
+        html += `<div style="padding:6px 16px 10px;font-size:0.64rem;color:var(--muted);font-style:italic">≈ converted from local currency at an approximate rate; exact USD figures load with the next workbook.</div>`;
+      }
     }
     return html;
   }

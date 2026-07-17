@@ -233,29 +233,37 @@
         "name": "Temuraz Akhvlediani",
         "unit": "TRUSS",
         "team": "Admin",
-        "gross": 17985.26,
-        "currency": "GEL"
+        "gross": 6654.55,
+        "currency": "USD",
+        "grossGel": 17985.26,
+        "approx": true
       },
       {
         "name": "Stepan Ustinov",
         "unit": "AwesomeAPI",
         "team": "AwesomeAPI",
-        "gross": 8722.11,
-        "currency": "GEL"
+        "gross": 3227.18,
+        "currency": "USD",
+        "grossGel": 8722.11,
+        "approx": true
       },
       {
         "name": "Zurab Toidze",
         "unit": "Civille",
         "team": "Civille",
-        "gross": 3061.54,
-        "currency": "GEL"
+        "gross": 1132.77,
+        "currency": "USD",
+        "grossGel": 3061.54,
+        "approx": true
       },
       {
         "name": "Ketevan Dalakishvili",
         "unit": "TRUSS",
         "team": "Admin",
-        "gross": 2512.09,
-        "currency": "GEL"
+        "gross": 929.47,
+        "currency": "USD",
+        "grossGel": 2512.09,
+        "approx": true
       }
     ],
     "kazakhstan": [

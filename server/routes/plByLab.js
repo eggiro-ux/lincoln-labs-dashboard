@@ -586,6 +586,24 @@ const TXN_REALLOCATIONS = [
     ],
     targets: [{ lab: 'Truss', share: 1, label: 'Mellow / Solar Staff payroll, ex-Egor (from Offshore Labor)' }],
   },
+  {
+    // Temuraz Akhvlediani (Georgia) is Director of Overseas Operations and
+    // manages all the labs — his salary splits 25/25/25/25 across Civille/
+    // Truss/AwesomeAPI/LL (per Eric 2026-07-19). He is 87.7444% of the Georgia
+    // bookings in Truss Team Salaries (17,985.26 of 20,497.35 GEL gross;
+    // Ketevan Dalakishvili is the rest and stays Truss). Each moved lab gets
+    // 25% of his 87.7444% = 21.9361%; Truss keeps the 34.1917% remainder
+    // (Ketevan + Temuraz's own Truss quarter). Re-derive these shares if the
+    // Georgia roster mix changes (the monthly routine watches for this).
+    id:        'temuraz_split',
+    accountId: '151',
+    memoMatch: /georgia/i,
+    targets: [
+      { lab: 'Civille',      share: 0.219361, label: 'Temuraz Akhvlediani — 25% Civille share (from Truss Team Salaries)' },
+      { lab: 'AwesomeAPI',   share: 0.219361, label: 'Temuraz Akhvlediani — 25% AwesomeAPI share (from Truss Team Salaries)' },
+      { lab: 'Lincoln Labs', share: 0.219361, label: 'Temuraz Akhvlediani — 25% share (from Truss Team Salaries)' },
+    ],
+  },
   // (2026-07-18) The whole-country wires never hit account 82 — the bookkeeper
   // books each lab's payroll share into its own offshore account (83 Civille,
   // 84 AwesomeAPI, 151 Truss). What's left in 82 is genuinely Lincoln Labs':

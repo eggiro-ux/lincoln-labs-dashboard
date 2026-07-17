@@ -651,10 +651,9 @@ const TXN_REALLOCATIONS = [
 // accounts would otherwise route to Lincoln Labs). Per Eric 2026-07-10.
 const ACCOUNT_LAB = {
   '98':         'Truss',        // Legal & Professional — Lincoln Labs sub-account
-  '1150040022': 'Civille',      // Rent — Back-Owed Rent
-  '1150040029': 'Civille',      // Rent — Office Rent - Kansas
   '154':        'Lincoln Labs', // Interest Income — treasury (Wise, Ramp, First Internet Bank)
   '1150040039': 'Lincoln Labs', // Dividend Income — treasury (Ramp)
+  // Rent accounts 1150040022 / 1150040029 moved to ACCOUNT_SPLITS 2026-07-17
 };
 
 // ── Whole-account splits ──────────────────────────────────────────────────────
@@ -679,6 +678,24 @@ const EVEN_5WAY = [                      // all labs except Caboodle
   { lab: 'Apps',         share: 0.20 },
   { lab: 'Lincoln Labs', share: 0.20 },
 ];
+// Eric's personal lab weights (2026-07-11) — used for expenses that are really
+// "Eric costs", like his Kansas lease.
+const ERIC_WEIGHTS = [
+  { lab: 'Civille',      share: 0.35 },
+  { lab: 'Truss',        share: 0.25 },
+  { lab: 'AwesomeAPI',   share: 0.20 },
+  { lab: 'Apps',         share: 0.05 },
+  { lab: 'Lincoln Labs', share: 0.15 },
+];
+// The Farrukh/Hoopman distribution split (2026-07-10) — also used for items
+// that "follow the distributions", like the back-owed rent payments.
+const DISTRIBUTION_WEIGHTS = [
+  { lab: 'Truss',        share: 0.25 },
+  { lab: 'Civille',      share: 0.25 },
+  { lab: 'AwesomeAPI',   share: 0.25 },
+  { lab: 'Lincoln Labs', share: 0.20 },
+  { lab: 'Apps',         share: 0.05 },
+];
 // LL payroll (accounts 86/90/147/135) splits by month, derived from Gusto
 // per-employee gross pay (verified to the cent against the QBO wage JEs,
 // 2026-07-10). People in the LL payroll bucket and their lab weights per Eric:
@@ -687,17 +704,18 @@ const EVEN_5WAY = [                      // all labs except Caboodle
 // Sidecar accounts (taxes/health/dental) follow the wage proportions.
 // FALLBACK covers months with no entry (Jul 2026+): current roster (Eric +
 // Danil) at June comp levels. Regenerate when the LL payroll roster changes.
-// Regenerated 2026-07-11: Eric's weights now 35/25/20/5/15 Civ/Truss/AAPI/Apps/LL
-// (was 35/35/20/3/7). Danil, Laura, Ella weights unchanged.
+// Regenerated 2026-07-17 (Eric x Hoopman Q2 review): Danil's weights change to
+// 10/10/10/0/70 Civ/Truss/AAPI/Apps/LL — he's mostly on Lincoln Labs work.
+// Eric stays 35/25/20/5/15 (2026-07-11). Laura + Ella 100% Civille.
 const LL_PAYROLL_MONTHLY = {
-  '2026-01': [{ lab: 'Civille', share: 0.389187 }, { lab: 'Truss', share: 0.220973 }, { lab: 'AwesomeAPI', share: 0.176778 }, { lab: 'Apps', share: 0.026052 }, { lab: 'Lincoln Labs', share: 0.187010 }],
-  '2026-02': [{ lab: 'Civille', share: 0.395847 }, { lab: 'Truss', share: 0.218112 }, { lab: 'AwesomeAPI', share: 0.174489 }, { lab: 'Apps', share: 0.025091 }, { lab: 'Lincoln Labs', share: 0.186461 }],
-  '2026-03': [{ lab: 'Civille', share: 0.343138 }, { lab: 'Truss', share: 0.239269 }, { lab: 'AwesomeAPI', share: 0.191415 }, { lab: 'Apps', share: 0.030472 }, { lab: 'Lincoln Labs', share: 0.195706 }],
-  '2026-04': [{ lab: 'Civille', share: 0.320470 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.035235 }, { lab: 'Lincoln Labs', share: 0.194295 }],
-  '2026-05': [{ lab: 'Civille', share: 0.312349 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.031175 }, { lab: 'Lincoln Labs', share: 0.206476 }],
-  '2026-06': [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.208896 }],
+  '2026-01': [{ lab: 'Civille', share: 0.334760 }, { lab: 'Truss', share: 0.166546 }, { lab: 'AwesomeAPI', share: 0.140494 }, { lab: 'Apps', share: 0.026052 }, { lab: 'Lincoln Labs', share: 0.332148 }],
+  '2026-02': [{ lab: 'Civille', share: 0.340252 }, { lab: 'Truss', share: 0.162517 }, { lab: 'AwesomeAPI', share: 0.137426 }, { lab: 'Apps', share: 0.025091 }, { lab: 'Lincoln Labs', share: 0.334714 }],
+  '2026-03': [{ lab: 'Civille', share: 0.290993 }, { lab: 'Truss', share: 0.187124 }, { lab: 'AwesomeAPI', share: 0.156652 }, { lab: 'Apps', share: 0.030472 }, { lab: 'Lincoln Labs', share: 0.334759 }],
+  '2026-04': [{ lab: 'Civille', share: 0.276174 }, { lab: 'Truss', share: 0.205705 }, { lab: 'AwesomeAPI', share: 0.170470 }, { lab: 'Apps', share: 0.035235 }, { lab: 'Lincoln Labs', share: 0.312416 }],
+  '2026-05': [{ lab: 'Civille', share: 0.255874 }, { lab: 'Truss', share: 0.193524 }, { lab: 'AwesomeAPI', share: 0.162349 }, { lab: 'Apps', share: 0.031175 }, { lab: 'Lincoln Labs', share: 0.357078 }],
+  '2026-06': [{ lab: 'Civille', share: 0.251841 }, { lab: 'Truss', share: 0.191104 }, { lab: 'AwesomeAPI', share: 0.160736 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.365951 }],
 };
-const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.310736 }, { lab: 'Truss', share: 0.250000 }, { lab: 'AwesomeAPI', share: 0.200000 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.208896 }];
+const LL_PAYROLL_FALLBACK = [{ lab: 'Civille', share: 0.251841 }, { lab: 'Truss', share: 0.191104 }, { lab: 'AwesomeAPI', share: 0.160736 }, { lab: 'Apps', share: 0.030368 }, { lab: 'Lincoln Labs', share: 0.365951 }];
 
 // Uzbekistan internal-team payroll (QBO "Truss - Team Salaries", acct 151) is
 // NOT all Truss — per-person business units from the monthly International
@@ -717,6 +735,15 @@ const UZBEK_TEAM_JUN = [
   { lab: 'AwesomeAPI',   share: 0.144531 },
   { lab: 'Lincoln Labs', share: 0.038389 },
 ];
+// July onward: Kambar Kidiraliev + Abdurashid Abdullaev moved Civille → Truss
+// (Truss CMS) per the Eric x Hoopman Q2 review; Eric updated the July sheet.
+// The 2026-08 workbook will confirm these on the Aug 11 scheduled run.
+const UZBEK_TEAM_JUL = [
+  { lab: 'Civille',      share: 0.424501 },
+  { lab: 'Truss',        share: 0.392578 },
+  { lab: 'AwesomeAPI',   share: 0.144531 },
+  { lab: 'Lincoln Labs', share: 0.038390 },
+];
 const UZBEK_TEAM_MONTHLY = {
   '2026-01': UZBEK_TEAM_FEB,
   '2026-02': UZBEK_TEAM_FEB,
@@ -735,11 +762,16 @@ const ACCOUNT_SPLITS = {
   '10':  { name: 'Legal & Professional',     targets: EVEN_4WAY },
   '65':  { name: 'QuickBooks Subscriptions', targets: EVEN_4WAY },
   '1150040041': { name: 'QuickBooks Payments Fees', targets: EVEN_5WAY },
+  // Per Eric x Hoopman Q2 review (2026-07-17): the Kansas office rent is
+  // really Eric's lease → his payroll weights; the back-owed rent payments
+  // are distributions → the Farrukh/Hoopman distribution split.
+  '1150040029': { name: 'Office Rent - Kansas (Eric lease)', targets: ERIC_WEIGHTS },
+  '1150040022': { name: 'Back-Owed Rent',                    targets: DISTRIBUTION_WEIGHTS },
   '86':  { name: 'Payroll Wages',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '90':  { name: 'Payroll Taxes',            targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '147': { name: 'Health Insurance',         targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
   '135': { name: 'Dental & Vision',          targets: LL_PAYROLL_FALLBACK, monthlyTargets: LL_PAYROLL_MONTHLY },
-  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_JUN, monthlyTargets: UZBEK_TEAM_MONTHLY },
+  '151': { name: 'Uzbekistan Team Salaries', targets: UZBEK_TEAM_JUL, monthlyTargets: UZBEK_TEAM_MONTHLY },
   // Overseas office rent: Civille takes 20%, the remaining 80% stays with
   // Truss (the account's native lab) as the split remainder.
   '1150040017': { name: 'Overseas Rent & Utilities', targets: [{ lab: 'Civille', share: 0.20 }] },
@@ -793,6 +825,42 @@ async function fetchPLDetailWithRetry(accessToken, realmId, accId, startDate, en
       await new Promise(r => setTimeout(r, 1500 * attempt));
     }
   }
+}
+
+// ── International roster (drill-down breakdown) ───────────────────────────────
+// Per-person payroll rows from the monthly International Accounting workbook,
+// keyed by payroll month (YYYY-MM) then tab. Refreshed by the monthly
+// "monthly-intl-payroll-shares" scheduled routine. Lets the drill modal show
+// WHO is behind the offshore wire memos instead of just the QBO lines.
+let INTL_ROSTER = {};
+try {
+  INTL_ROSTER = require('../data/intlRoster.json');
+} catch (err) {
+  console.error('intlRoster.json not loadable (drill roster disabled):', err.message);
+}
+const INTL_ROSTER_TABS = {
+  '151': ['uzbekistan'],                       // Uzbekistan Team Salaries
+  '82':  ['mellow', 'georgia', 'kazakhstan'],  // Offshore Labor — LL account
+};
+
+// Pick the roster for the drilled month: the latest workbook month at or
+// before it, else the earliest available (roster months are sparse).
+function rosterFor(accountId, monthKey) {
+  const tabs = INTL_ROSTER_TABS[String(accountId)];
+  if (!tabs) return null;
+  const months = Object.keys(INTL_ROSTER).sort();
+  if (!months.length) return null;
+  let pick = null;
+  for (const m of months) if (m <= monthKey) pick = m;
+  if (!pick) pick = months[0];
+  const sections = [];
+  for (const t of tabs) {
+    const rows = (INTL_ROSTER[pick] || {})[t];
+    if (rows && rows.length) {
+      sections.push({ title: t.charAt(0).toUpperCase() + t.slice(1), rows });
+    }
+  }
+  return sections.length ? { month: pick, sections } : null;
 }
 
 // Per-account status of the most recent reallocation fetch — exposed on
@@ -1796,7 +1864,11 @@ async function getPlDrillData(req, res) {
     }
 
     console.log(`/api/pl-drill account=${accountId} ${startDate}..${endDate} ${am}${reallocParam ? ` realloc=${reallocParam}` : ''} → ${transactions.length} txns`);
-    res.json(shareNote ? { transactions, shareNote } : { transactions });
+    const roster = rosterFor(accountId, String(startDate).substring(0, 7));
+    const payload = { transactions };
+    if (shareNote) payload.shareNote = shareNote;
+    if (roster)    payload.roster = roster;
+    res.json(payload);
   } catch (err) {
     const qboErr = err.response?.data;
     console.error('/api/pl-drill error:', qboErr || err.message);

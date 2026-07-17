@@ -1,0 +1,478 @@
+{
+  "2026-06": {
+    "uzbekistan": [
+      {
+        "name": "Said Lutfulin",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 874.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Kambar Kidiraliev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1530.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdurashid Abdullaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1421.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Quandiq Kalbaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 874.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sabina Saydullaeva",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 1984.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdulaziz Abdullayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1311.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Jahongir Ikromidinov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1858.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Khusniddin Fakhritdinov",
+        "unit": "TRUSS",
+        "team": "TRUSS CMS",
+        "gross": 2885.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Shakhruz Muradullaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1858.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Alexander Urazaev",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 3607.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Rustam Umarov",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 2186.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Alladdin Kurbanbayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Makar Kondratiev",
+        "unit": "TRUSS",
+        "team": "TRUSS CMS",
+        "gross": 3967.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Jamshid Zaripov",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 1639.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Muzaffar Kholmuhammadov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 2404.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Nodirbek Bakhodirov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1093.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Bakhtiyor Tairov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1749.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Rasul Mamashev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1967.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sardor Abduganiyev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1639.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Shams Imomnazarov",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 2514.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Darya Simakova",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1202.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Otabek Atabayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1202.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sevara Zaynidinova",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Mark Kurbatov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1093.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdunabi Abduvaxobov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 874.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Diyor Baynazarov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 765.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Laylo Khudoykulova",
+        "unit": "TRUSS",
+        "team": "TRUSS CMS",
+        "gross": 1858.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Nazokat Yusupjonova",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 874.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Asal Buriyeva",
+        "unit": "Lincoln Labs",
+        "team": "BrashApps",
+        "gross": 1858.0,
+        "currency": "USD"
+      }
+    ],
+    "mellow": [
+      {
+        "name": "Egor Blajenov",
+        "unit": "Lincoln Labs",
+        "team": "Lincoln Apps",
+        "gross": 5492.97,
+        "currency": "USD"
+      },
+      {
+        "name": "Kate Junina",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 2410.64,
+        "currency": "USD"
+      },
+      {
+        "name": "Mariam Shukhoshvili",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 1925.0,
+        "currency": "USD"
+      }
+    ],
+    "georgia": [
+      {
+        "name": "Temuraz Akhvlediani",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 17985.26,
+        "currency": "GEL"
+      },
+      {
+        "name": "Stepan Ustinov",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 8722.11,
+        "currency": "GEL"
+      },
+      {
+        "name": "Zurab Toidze",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 3061.54,
+        "currency": "GEL"
+      },
+      {
+        "name": "Ketevan Dalakishvili",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 2512.09,
+        "currency": "GEL"
+      }
+    ],
+    "kazakhstan": [
+      {
+        "name": "Artem Panov",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 4348.34,
+        "currency": "USD"
+      },
+      {
+        "name": "Artem Panov",
+        "unit": "Lincoln Apps",
+        "team": "Lincoln Apps",
+        "gross": 1087.09,
+        "currency": "USD"
+      },
+      {
+        "name": "Ekaterina Kassumova",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 224.32,
+        "currency": "USD"
+      }
+    ]
+  },
+  "2026-02": {
+    "uzbekistan": [
+      {
+        "name": "Said Lutfulin",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Kambar Kidiraliev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1202.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdurashid Abdullaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1421.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Quandiq Kalbaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sabina Saydullaeva",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 1803.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdulaziz Abdullayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1093.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Jahongir Ikromidinov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1530.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Khusniddin Fakhritdinov",
+        "unit": "TRUSS",
+        "team": "TRUSS CMS",
+        "gross": 2885.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Shakhruz Muradullaev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1858.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Alexander Urazaev",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 3607.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Rustam Umarov",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 1749.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Alladdin Kurbanbayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Makar Kondratiev",
+        "unit": "TRUSS",
+        "team": "TRUSS CMS",
+        "gross": 3607.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Jamshid Zaripov",
+        "unit": "TRUSS",
+        "team": "Admin",
+        "gross": 1639.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Muzaffar Kholmuhammadov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 2077.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Nodirbek Bakhodirov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1093.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Bakhtiyor Tairov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1749.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Rasul Mamashev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1967.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sardor Abduganiyev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1311.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Shams Imomnazarov",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 2186.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Darya Simakova",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1093.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Otabek Atabayev",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 1202.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Sevara Zaynidinova",
+        "unit": "TRUSS",
+        "team": "Recruting",
+        "gross": 437.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Mark Kurbatov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 874.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Abdunabi Abduvaxobov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 656.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Diyor Baynazarov",
+        "unit": "Civille",
+        "team": "Civille",
+        "gross": 574.0,
+        "currency": "USD"
+      },
+      {
+        "name": "Bekhruz Sharapov",
+        "unit": "AwesomeAPI",
+        "team": "AwesomeAPI",
+        "gross": 268.0,
+        "currency": "USD"
+      }
+    ]
+  }
+}

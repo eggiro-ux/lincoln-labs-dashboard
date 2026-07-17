@@ -18,6 +18,7 @@ const { handleAsk } = require('./ask');
 const tokenStore = require('./tokenStore');
 const marketingRouter = require('./routes/marketing');
 const { getPlByLabData, getPlDrillData } = require('./routes/plByLab');
+const { getPlInsights } = require('./routes/plInsights');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -232,6 +233,7 @@ app.use('/api', marketingRouter);
 
 app.get('/api/pl-by-lab', requireDashboardAuth, requireQBO, getPlByLabData);
 app.get('/api/pl-drill', requireDashboardAuth, requireQBO, getPlDrillData);
+app.post('/api/pl-insights', requireDashboardAuth, getPlInsights);
 
 // ─── Page routes (must be before catch-all) ───────────────────────────────────
 app.get('/pl-by-lab', (req, res) => {

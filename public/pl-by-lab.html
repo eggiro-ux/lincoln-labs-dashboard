@@ -377,6 +377,8 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <button class="seg-btn active" data-val="Accrual" onclick="setAM('Accrual')">Accrual</button>
         <button class="seg-btn"        data-val="Cash"    onclick="setAM('Cash')">Cash</button>
       </div>
+      <button class="seg-btn" id="feeToggle" onclick="toggleInternalFees()"
+              title="When on, labs pay Truss $400/hire/month for offshore recruiting & HR support (synthetic, zero-sum)">○ Truss fees</button>
       <button class="seg-btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
       <button id="themeBtn" onclick="toggleTheme()">☀</button>
     </div>
@@ -504,6 +506,22 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     dateEnd   = e;
     load();
   };
+
+  // ── Internal Truss service fees toggle (default off) ───────────────────────
+  let internalFees = localStorage.getItem('llInternalFees') === '1';
+  function paintFeeToggle() {
+    const b = document.getElementById('feeToggle');
+    b.textContent = (internalFees ? '● ' : '○ ') + 'Truss fees';
+    b.style.borderColor = internalFees ? 'var(--action)' : '';
+    b.style.color = internalFees ? 'var(--action)' : '';
+  }
+  window.toggleInternalFees = function () {
+    internalFees = !internalFees;
+    localStorage.setItem('llInternalFees', internalFees ? '1' : '0');
+    paintFeeToggle();
+    load();
+  };
+  paintFeeToggle();
 
   // ── Accounting method ──────────────────────────────────────────────────────
   window.setAM = function (val) {
@@ -648,6 +666,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
           if (row.accountId && v !== 0) {
             return `<td class="num drill-cell" data-account-id="${escH(row.accountId)}" data-realloc="${escH(row.realloc || '')}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
           }
+          if (row.internalFee && v !== 0) {
+            return `<td class="num drill-cell" data-internal-fee="${escH(row.internalFee)}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
+          }
           return `<td class="num">${v !== 0 ? fmtDollar(v) : '<span style="opacity:0.3">—</span>'}</td>`;
         }).join('');
         html += `<tr class="t-group-child" data-gid="${gid}">
@@ -671,6 +692,9 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         const cls = numClass(v, row.type);
         if (row.accountId && v !== 0) {
           return `<td class="num${cls} drill-cell" data-account-id="${escH(row.accountId)}" data-realloc="${escH(row.realloc || '')}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
+        }
+        if (row.internalFee && v !== 0) {
+          return `<td class="num${cls} drill-cell" data-internal-fee="${escH(row.internalFee)}" data-col-idx="${i}" data-amount="${v}">${fmtDollar(v)}</td>`;
         }
         return `<td class="num${cls}">${fmtDollar(v)}</td>`;
       }).join('');
@@ -1063,7 +1087,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     btn.disabled = true;
 
     try {
-      const res = await fetch(`/api/pl-by-lab?accounting_method=${am}&start_date=${dateStart}&end_date=${dateEnd}`);
+      const res = await fetch(`/api/pl-by-lab?accounting_method=${am}&start_date=${dateStart}&end_date=${dateEnd}${internalFees ? '&internalFees=1' : ''}`);
 
       if (res.status === 401) {
         contentEl.innerHTML = `<div class="state-msg">Dashboard login required. <a href="/" class="state-link">Return home</a></div>`;
@@ -1179,11 +1203,12 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
   // ── Drill-down ─────────────────────────────────────────────────────────────
   async function openDrill(cell) {
-    const accountId = cell.dataset.accountId;
-    const colIdx    = parseInt(cell.dataset.colIdx, 10);
-    const ranges    = data.monthRanges || [];
-    const range     = ranges[colIdx];
-    if (!accountId || !range) return;
+    const accountId   = cell.dataset.accountId;
+    const internalFee = cell.dataset.internalFee;
+    const colIdx      = parseInt(cell.dataset.colIdx, 10);
+    const ranges      = data.monthRanges || [];
+    const range       = ranges[colIdx];
+    if ((!accountId && !internalFee) || !range) return;
 
     const tr       = cell.closest('tr');
     const rowLabel = tr?.querySelector('td:first-child')?.textContent?.trim() || '';
@@ -1198,14 +1223,19 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
     try {
       const params = new URLSearchParams({
-        accountId,
         startDate: range.start,
         endDate:   range.end,
         accountingMethod: am,
       });
-      // Rows affected by a transaction-level reallocation drill to a filtered
-      // view: 'exclude' hides moved txns, a rule id shows only them.
-      if (cell.dataset.realloc) params.set('realloc', cell.dataset.realloc);
+      if (internalFee) {
+        // Synthetic fee rows drill to the employee list behind the headcount
+        params.set('internalFee', internalFee);
+      } else {
+        params.set('accountId', accountId);
+        // Rows affected by a transaction-level reallocation drill to a filtered
+        // view: 'exclude' hides moved txns, a rule id shows only them.
+        if (cell.dataset.realloc) params.set('realloc', cell.dataset.realloc);
+      }
       const resp = await fetch(`/api/pl-drill?${params}`);
       if (!resp.ok) {
         const j = await resp.json().catch(() => ({}));

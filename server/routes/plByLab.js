@@ -808,6 +808,46 @@ const INTL_ROSTER_ACCOUNTS = {
   '82':  ['lincoln labs', 'lincoln apps'],   // LL offshore (Asal, Egor)
 };
 
+// ── Internal Truss service fees (toggleable, per Eric x Hoopman 2026-07-20) ──
+// Truss provides recruiting/HR support to the other labs' offshore hires free
+// of charge. When the "labs pay Truss service fees" toggle is ON, each paying
+// lab is charged rate × its offshore headcount per month, and Truss books the
+// same total as income. Entirely synthetic and zero-sum: no QBO account is
+// touched, company totals don't move, and the rows are labeled "(internal)".
+// Headcount comes from the roster workbook data, by Business Unit.
+const INTERNAL_FEE_RATE  = 400; // $/hire/month
+const INTERNAL_FEE_PAYEE = 'Truss';
+const INTERNAL_FEE_PAYERS = {
+  'Civille':    ['civille'],
+  'AwesomeAPI': ['awesomeapi'],
+  'Apps':       ['lincoln apps'],
+};
+
+// Roster month key for a given YYYY-MM (latest at-or-before, else earliest).
+function rosterMonthFor(monthKey) {
+  const months = Object.keys(INTL_ROSTER).sort();
+  if (!months.length) return null;
+  let pick = null;
+  for (const m of months) if (m <= monthKey) pick = m;
+  return pick || months[0];
+}
+
+// Offshore employees for a payer lab in a given month (across all tabs).
+function internalFeeEmployees(payerLab, monthKey) {
+  const units = INTERNAL_FEE_PAYERS[payerLab];
+  const pick  = rosterMonthFor(monthKey);
+  if (!units || !pick) return [];
+  const out = [];
+  for (const [tab, rows] of Object.entries(INTL_ROSTER[pick] || {})) {
+    for (const r of rows || []) {
+      if (units.includes(String(r.unit || '').toLowerCase())) {
+        out.push({ name: r.name, tab, team: r.team });
+      }
+    }
+  }
+  return out;
+}
+
 // Pick the roster for the drilled month: the latest workbook month at or
 // before it, else the earliest available (roster months are sparse).
 function rosterFor(accountId, monthKey) {
@@ -964,7 +1004,8 @@ function slugify(s) {
 // ── Core parser ───────────────────────────────────────────────────────────────
 // reallocByAccount: optional output of fetchTxnReallocations — per-account
 // month vectors to move between labs at the expense-routing step.
-function parsePL(pl, reallocByAccount) {
+// opts.internalFees: when true, inject the synthetic Truss service fees.
+function parsePL(pl, reallocByAccount, opts = {}) {
   const cols = pl.Columns?.Column || [];
 
   // ColData offset: QBO sometimes includes an Account column first
@@ -1240,6 +1281,38 @@ function parsePL(pl, reallocByAccount) {
     }
   }
 
+  // ── Internal Truss service fees (toggle) ───────────────────────────────────
+  // Zero-sum synthetic entries: expense per paying lab, matching income for
+  // Truss. Deliberately NOT added to sumIncome/sumExpenses or fullPLRows —
+  // company-wide totals must not move. Rows carry `internalFee` instead of an
+  // accountId, so the conservation audit ignores them and the drill lists the
+  // employees behind the fee.
+  if (opts.internalFees) {
+    const feeTotal = zero();
+    for (const payer of Object.keys(INTERNAL_FEE_PAYERS)) {
+      const values = monthKeys.map(mk => INTERNAL_FEE_RATE * internalFeeEmployees(payer, mk).length);
+      if (!values.some(v => v !== 0)) continue;
+      for (let i = 0; i < N; i++) feeTotal[i] += values[i];
+      labExpenses[payer] = labExpenses[payer] || [];
+      labExpenses[payer].push({
+        label: `Truss service fee — offshore support (internal, $${INTERNAL_FEE_RATE}/hire/mo)`,
+        values, group: 'Internal Service Fees', subLabel: null,
+        internalFee: payer,
+      });
+    }
+    if (feeTotal.some(v => v !== 0)) {
+      labIncome[INTERNAL_FEE_PAYEE] = labIncome[INTERNAL_FEE_PAYEE] || [];
+      labIncome[INTERNAL_FEE_PAYEE].push({
+        label: 'Internal service fees — labs (internal)',
+        values: feeTotal,
+        internalFee: INTERNAL_FEE_PAYEE,
+      });
+      if (buRevByMonth[INTERNAL_FEE_PAYEE]) {
+        for (let i = 0; i < N; i++) buRevByMonth[INTERNAL_FEE_PAYEE][i] += feeTotal[i];
+      }
+    }
+  }
+
   // ── Exchange gain/loss ─────────────────────────────────────────────────────
   // Find it in fullPLRows
   const exRow = fullPLRows.find(r => r.label && r.label.toLowerCase().includes('exchange'));
@@ -1386,7 +1459,7 @@ function parsePL(pl, reallocByAccount) {
 
     // Income
     rows.push({ label: 'INCOME', type: 'section_header' });
-    incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
+    incRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, internalFee: r.internalFee }));
     const totalInc = sumRows(incRows);
     rows.push({ label: 'Total Income', values: totalInc, type: 'total_income' });
 
@@ -1417,7 +1490,7 @@ function parsePL(pl, reallocByAccount) {
       }
 
       // Ungrouped rows first (shouldn't be many; mainly a safety fallback)
-      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
+      ungrouped.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc, internalFee: r.internalFee }));
 
       // Grouped expense sections — each group gets a collapsible header + child rows
       for (const [grpName, grpRows] of groupMap) {
@@ -1439,6 +1512,7 @@ function parsePL(pl, reallocByAccount) {
             groupId:  grpId,
             accountId: r.accountId,
             realloc:  r.realloc,
+            internalFee: r.internalFee,
           });
         });
       }
@@ -1626,7 +1700,8 @@ async function getPlByLabData(req, res) {
         return null;
       }),
     ]);
-    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges, conservationAudit } = parsePL(pl, reallocations);
+    const internalFees = req.query.internalFees === '1';
+    const { summary, buRows, fullPLRows, labs, unassigned, monthRanges, conservationAudit } = parsePL(pl, reallocations, { internalFees });
 
     if (forexByMonth) breakOutForexRow(labs['Truss'], monthRanges, forexByMonth);
 
@@ -1772,6 +1847,34 @@ function parseTransactionReport(report, accountId) {
 async function getPlDrillData(req, res) {
   try {
     const { accountId, startDate, endDate } = req.query;
+
+    // Internal-fee drill: no QBO behind it — list the employees whose
+    // headcount produced the fee ($RATE per person for the drilled month).
+    // internalFee=<payer lab> lists that lab's people; =Truss lists everyone
+    // (the payee view of the same fee).
+    if (req.query.internalFee) {
+      const who = req.query.internalFee;
+      const monthKey = String(startDate || '').substring(0, 7);
+      const payers = who === INTERNAL_FEE_PAYEE ? Object.keys(INTERNAL_FEE_PAYERS) : [who];
+      const transactions = [];
+      for (const payer of payers) {
+        for (const emp of internalFeeEmployees(payer, monthKey)) {
+          transactions.push({
+            date:   startDate,
+            type:   'Internal fee',
+            num:    '',
+            name:   emp.name,
+            memo:   `${payer} offshore hire — ${emp.tab.charAt(0).toUpperCase() + emp.tab.slice(1)}${emp.team ? ' / ' + emp.team : ''}`,
+            amount: INTERNAL_FEE_RATE,
+          });
+        }
+      }
+      return res.json({
+        transactions,
+        shareNote: `Synthetic internal fee — $${INTERNAL_FEE_RATE}/hire/month for Truss recruiting & HR support. Not a real QuickBooks transaction.`,
+      });
+    }
+
     if (!accountId || !startDate || !endDate) {
       return res.status(400).json({ error: 'accountId, startDate, endDate are required' });
     }

@@ -1037,6 +1037,15 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       rows.push({ label: 'Total Untagged Expenses', values: sumArrays(expRows.map(r => r.values)), type: 'total_expenses' });
     }
 
+    // Reconciliation entries — excluded from lab attribution by design, but
+    // listed and drillable so every unclassified dollar can be traced.
+    const recRows = u.reconciliationRows || [];
+    if (recRows.length > 0) {
+      rows.push({ label: 'RECONCILIATION ITEMS', type: 'section_header' });
+      recRows.forEach(r => rows.push({ label: cleanExpLabel(r.label), values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
+      rows.push({ label: 'Total Reconciliation Items', values: sumArrays(recRows.map(r => r.values)), type: 'total_expenses' });
+    }
+
     if (rows.length > 0) {
       html += buildPLTable(rows, months, partial);
     } else {

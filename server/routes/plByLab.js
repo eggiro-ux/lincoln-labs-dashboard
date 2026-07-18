@@ -1573,6 +1573,10 @@ function parsePL(pl, reallocByAccount, opts = {}) {
     },
     incomeRows:  unassignedIncome,
     expenseRows: pureUntaggedExp,
+    // Reconciliation entries (Z-Over/Under, QB payment artifacts) are excluded
+    // from lab attribution by design, but still listed here — drillable — so
+    // every unclassified dollar is visible and traceable.
+    reconciliationRows: reconciliationItems,
   };
 
   // ── Conservation audit ─────────────────────────────────────────────────────

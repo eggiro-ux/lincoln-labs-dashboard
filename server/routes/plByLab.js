@@ -1545,68 +1545,15 @@ function parsePL(pl, reallocByAccount, opts = {}) {
     return { revenue: totalInc, cogs: totalCgs, grossProfit: gp, gmPct, totalExpenses: totalExp, netOpIncome: netOp, netMarginPct };
   }
 
-  // Truss special KPIs
-  function trussKPIs() {
-    const serviceFees = sumRows(trussServiceFees).reduce((a,b)=>a+b,0);
-    const passThrough = sumRows(trussPassThrough).reduce((a,b)=>a+b,0);
-    const totalRev    = serviceFees + passThrough;
-    const totalCgs    = sumRows(labCOGS['Truss'] || []).reduce((a,b)=>a+b,0);
-    const gp          = totalRev - totalCgs;
-    const gmPct       = totalRev ? parseFloat((gp / totalRev * 100).toFixed(1)) : null;
-    const totalExp    = sumRows(labExpenses['Truss'] || []).reduce((a,b)=>a+b,0);
-    const netOp       = gp - totalExp;
-    const netMarginPct = totalRev ? parseFloat((netOp / totalRev * 100).toFixed(1)) : null;
-    return {
-      totalRevenue:    totalRev,
-      serviceFeesRev:  serviceFees,
-      passThroughRev:  passThrough,
-      totalCOGS:       totalCgs,
-      grossProfit:     gp,
-      gmPct,
-      totalExpenses:   totalExp,
-      netOpIncome:     netOp,
-      netMarginPct,
-    };
-  }
-
-  // Truss P&L rows (all income combined, then all COGS, then expenses)
-  function trussRows() {
-    const allInc   = (labIncome['Truss'] || []);
-    const cogsRows = (labCOGS['Truss']   || []);
-    const expRows  = (labExpenses['Truss'] || []);
-    const rows = [];
-
-    rows.push({ label: 'INCOME', type: 'section_header' });
-    allInc.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
-    const totalInc = sumRows(allInc);
-    rows.push({ label: 'Total Income', values: totalInc, type: 'total_income' });
-
-    if (cogsRows.length > 0) {
-      rows.push({ label: 'COST OF GOODS SOLD', type: 'section_header' });
-      cogsRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId }));
-      const totalCOGS = sumRows(cogsRows);
-      rows.push({ label: 'Total COGS', values: totalCOGS, type: 'total_cogs' });
-      const gp = totalInc.map((v, i) => v - totalCOGS[i]);
-      rows.push({ label: 'Gross Profit', values: gp, type: 'gross_profit' });
-    }
-
-    if (expRows.length > 0) {
-      rows.push({ label: 'OPERATING EXPENSES', type: 'section_header' });
-      expRows.forEach(r => rows.push({ label: r.label, values: r.values, type: 'row', accountId: r.accountId, realloc: r.realloc }));
-      const totalExp  = sumRows(expRows);
-      rows.push({ label: 'Total Expenses', values: totalExp, type: 'total_expenses' });
-      const totalCOGS2 = sumRows(cogsRows);
-      const netOp = totalInc.map((v, i) => v - totalCOGS2[i] - totalExp[i]);
-      rows.push({ label: 'Net Operating Income (est.)', values: netOp, type: 'net_op' });
-    }
-
-    return rows;
-  }
+  // Truss uses the same standard KPI set as every other lab (per Eric
+  // 2026-07-20). Its tiles show GROSS figures incl. client-salary
+  // pass-through, matching its own P&L table; the Overview BU table keeps the
+  // economic-revenue model (pass-through netted out).
 
   // Civille already includes Phantom Copy (matchLab routes phantom → Civille)
   const labs = {
     'Civille':      { subtitle: null, kpis: labKPIs('Civille'),     rows: buildLabRows('Civille')     },
-    'Truss':        { subtitle: null, kpis: trussKPIs(),             rows: buildLabRows('Truss')       },
+    'Truss':        { subtitle: null, kpis: labKPIs('Truss'),        rows: buildLabRows('Truss')       },
     'AwesomeAPI':   { subtitle: null, kpis: labKPIs('AwesomeAPI'),   rows: buildLabRows('AwesomeAPI')  },
     'Apps':         { subtitle: null, kpis: labKPIs('Apps'),         rows: buildLabRows('Apps')        },
     'Lincoln Labs': { subtitle: null, kpis: labKPIs('Lincoln Labs'), rows: buildLabRows('Lincoln Labs')},

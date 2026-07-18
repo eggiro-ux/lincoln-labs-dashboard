@@ -600,7 +600,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     switch (activeTab) {
       case 'Overview':         el.innerHTML = renderOverview(); break;
       case 'Civille':          el.innerHTML = renderLabTab('Civille'); break;
-      case 'Truss':            el.innerHTML = renderTrussTab(); break;
+      case 'Truss':            el.innerHTML = renderLabTab('Truss'); break;
       case 'AwesomeAPI':       el.innerHTML = renderLabTab('AwesomeAPI'); break;
       case 'Apps':             el.innerHTML = renderLabTab('Apps'); break;
       case 'Lincoln Labs Co.': el.innerHTML = renderLabTab('Lincoln Labs'); break;
@@ -927,7 +927,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     }
 
     // KPI strip
-    const kpiDefs = labKey === 'Truss' ? [] : [
+    const kpiDefs = [
       { label: 'Revenue',        value: fmtKPI(kpis.revenue),       color },
       { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)' },
       { label: 'Gross Profit',   value: fmtKPI(kpis.grossProfit),   color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
@@ -943,30 +943,6 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     // P&L table
     html += buildPLTable(labData.rows || [], months, partial);
 
-    return html;
-  }
-
-  // ── TRUSS TAB ─────────────────────────────────────────────────────────────
-  function renderTrussTab() {
-    const labData = data.labs && data.labs['Truss'];
-    if (!labData) return '<div class="state-msg">No Truss data.</div>';
-
-    const months  = data.months;
-    const partial = data.partialMonths || [];
-    const color   = LAB_COLORS['Truss'];
-    const kpis    = labData.kpis || {};
-
-    const kpiDefs = [
-      { label: 'Total Revenue',      value: fmtKPI(kpis.totalRevenue),    color },
-      { label: 'Service Fees Rev',   value: fmtKPI(kpis.serviceFeesRev),  color: 'var(--text)' },
-      { label: 'Pass-Through Rev',   value: fmtKPI(kpis.passThroughRev),  color: 'var(--muted)' },
-      { label: 'Total COGS',         value: fmtKPI(kpis.totalCOGS),       color: 'var(--text)' },
-      { label: 'Gross Profit',       value: fmtKPI(kpis.grossProfit),      color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Net Margin',         value: fmtPct(kpis.netMarginPct),     color: 'var(--muted)' },
-    ];
-
-    let html = buildKPIStrip(kpiDefs);
-    html += buildPLTable(labData.rows || [], months, partial);
     return html;
   }
 

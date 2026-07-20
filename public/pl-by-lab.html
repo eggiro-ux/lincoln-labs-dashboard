@@ -793,12 +793,17 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const netOp   = sum(s.netOpIncome);
     const netInc  = sum(s.netIncome);
 
+    // Pass-through for the CURRENT period: gross revenue minus the BU table's
+    // economic revenue — recomputed every load so the tooltip never goes stale.
+    const buEconRev   = (data.buRows || []).reduce((s, r) => s + (r.totalRevenue || 0), 0);
+    const passThrough = totInc - buEconRev;
+
     const summaryKPIs = [
       { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)' },
       { label: 'Total COGS',       value: fmtKPI(totCOGS), color: 'var(--text)' },
       { label: 'Gross Profit',     value: fmtKPI(gp),      color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
       { label: 'Net Margin',       value: fmtPct(totInc ? netInc / totInc * 100 : null), color: 'var(--muted)',
-        tooltip: 'Gross basis: net income ÷ ALL revenue, including the ~$4M of Truss client-salary pass-through that flows in as income and back out as COGS. The BU table below nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.' },
+        tooltip: `Gross basis: net income ÷ ALL revenue, including the ${fmtKPI(passThrough)} of Truss client-salary pass-through (this period) that flows in as income and back out as COGS. The BU table below nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.` },
       { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)' },
       { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];

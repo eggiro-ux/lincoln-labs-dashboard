@@ -137,19 +137,19 @@ header {
   font-size: 0.5rem; font-weight: 700; cursor: default;
   position: relative; text-transform: none; letter-spacing: 0; line-height: 1;
 }
-.kpi-tip::after {
-  content: attr(data-tip);
-  position: absolute; bottom: calc(100% + 7px); left: 50%;
-  transform: translateX(-50%);
+/* Tooltip body is a single fixed-position element driven by JS (see initTooltips)
+   so it can't be clipped by scroll containers like .table-wrap. */
+#globalTip {
+  position: fixed; z-index: 5000;
   background: #111; color: var(--text);
   border: 1px solid var(--border); padding: 9px 11px; border-radius: 6px;
   font-size: 0.7rem; line-height: 1.45; font-weight: 400;
   white-space: normal; width: 230px;
-  opacity: 0; pointer-events: none; transition: opacity 0.15s;
-  z-index: 200;
+  opacity: 0; pointer-events: none; transition: opacity 0.12s;
   text-transform: none; letter-spacing: 0;
 }
-.kpi-tip:hover::after { opacity: 1; }
+#globalTip.show { opacity: 1; }
+.hkpi-label .kpi-tip, th .kpi-tip, td .kpi-tip { margin-left: 5px; vertical-align: middle; }
 
 /* ── Drill-down cells ─────────────────────────────────────────────────────── */
 td.drill-cell { cursor: pointer; }
@@ -560,16 +560,20 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const net      = sum(s.netIncome);
     const nm       = totalRev ? net / totalRev * 100 : null;
 
+    const buEconRev   = (data.buRows || []).reduce((s, r) => s + (r.totalRevenue || 0), 0);
+    const passThrough = totalRev - buEconRev;
+
     const pills = [
       { label: 'Total Revenue', value: fmtKPI(totalRev), color: 'var(--action)' },
       { label: 'Gross Profit',  value: fmtKPI(gp),       color: 'var(--action)' },
       { label: 'Net Income',    value: fmtKPI(net),       color: net >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Net Margin',    value: fmtPct(nm),        color: 'var(--muted)' },
+      { label: 'Net Margin',    value: fmtPct(nm),        color: 'var(--muted)',
+        tooltip: `Gross basis: net income ÷ ALL revenue, including the ${fmtKPI(passThrough)} of Truss client-salary pass-through (this period) that flows in as income and back out as COGS. The Overview's BU table nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.` },
     ];
 
     el.innerHTML = pills.map(p => `
       <div class="hkpi">
-        <div class="hkpi-label">${p.label}</div>
+        <div class="hkpi-label">${p.label}${p.tooltip ? `<span class="kpi-tip" data-tip="${escH(p.tooltip)}">i</span>` : ''}</div>
         <div class="hkpi-value" style="color:${p.color}">${p.value}</div>
       </div>`).join('');
   }
@@ -753,6 +757,31 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     return (s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
+  // ── Global tooltip (fixed-position, immune to overflow clipping) ───────────
+  (function initTooltips() {
+    const tip = document.createElement('div');
+    tip.id = 'globalTip';
+    document.body.appendChild(tip);
+    document.addEventListener('mouseover', e => {
+      const t = e.target.closest && e.target.closest('.kpi-tip');
+      if (!t) return;
+      tip.textContent = t.getAttribute('data-tip') || '';
+      tip.classList.add('show');
+      tip.style.left = '0px'; tip.style.top = '0px';
+      const r = t.getBoundingClientRect();
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let left = r.left + r.width / 2 - tw / 2;
+      left = Math.max(8, Math.min(left, window.innerWidth - tw - 8));
+      let top = r.top - th - 7;
+      if (top < 8) top = r.bottom + 7;
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+    });
+    document.addEventListener('mouseout', e => {
+      if (e.target.closest && e.target.closest('.kpi-tip')) tip.classList.remove('show');
+    });
+  })();
+
   // ── KPI strip builder ──────────────────────────────────────────────────────
   function buildKPIStrip(kpis) {
     // kpis: [{label, value, color, tooltip?}]
@@ -853,7 +882,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <th>Total Revenue</th>
         <th>Total Expenses</th>
         <th>Net Income</th>
-        <th title="Economic basis: each lab's net income ÷ its revenue, with Truss's client-salary pass-through netted out (only service fees + salary margin count as Truss revenue). The header tile above uses gross revenue instead, which is why the totals differ.">Net Margin % <span style="opacity:0.5;font-size:0.9em">ⓘ</span></th>
+        <th>Net Margin % <span class="kpi-tip" data-tip="Economic basis: each lab's net income ÷ its revenue, with Truss's client-salary pass-through netted out (only service fees + salary margin count as Truss revenue). The header tile above uses gross revenue instead, which is why the totals differ.">i</span></th>
       </tr></thead>
       <tbody>`;
 
@@ -900,7 +929,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <td class="num pos">${fmtDollar(totalRev)}</td>
       <td class="num">${fmtDollar(totalExp)}</td>
       <td class="num${totalNet >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(totalNet)}</td>
-      <td class="num${totalNetMargin != null && totalNetMargin >= 0 ? ' pos' : ' neg-val'}" title="Economic basis: company net income ÷ economic revenue (Truss pass-through netted out). The header tile's Net Margin divides the same net income by gross revenue including pass-through, so it reads lower.">${fmtPct(totalNetMargin)}</td>
+      <td class="num${totalNetMargin != null && totalNetMargin >= 0 ? ' pos' : ' neg-val'}">${fmtPct(totalNetMargin)} <span class="kpi-tip" data-tip="Economic basis: company net income ÷ economic revenue (Truss pass-through netted out). The header tile's Net Margin divides the same net income by gross revenue including pass-through, so it reads lower.">i</span></td>
     </tr>`;
 
     html += `</tbody></table></div></div>`;

@@ -797,7 +797,8 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)' },
       { label: 'Total COGS',       value: fmtKPI(totCOGS), color: 'var(--text)' },
       { label: 'Gross Profit',     value: fmtKPI(gp),      color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Net Margin',       value: fmtPct(totInc ? netInc / totInc * 100 : null), color: 'var(--muted)' },
+      { label: 'Net Margin',       value: fmtPct(totInc ? netInc / totInc * 100 : null), color: 'var(--muted)',
+        tooltip: 'Gross basis: net income ÷ ALL revenue, including the ~$4M of Truss client-salary pass-through that flows in as income and back out as COGS. The BU table below nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.' },
       { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)' },
       { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];
@@ -808,7 +809,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <div class="kpi-grid-7">
         ${summaryKPIs.map(k => `
           <div class="kpi-card" style="border:1px solid var(--border)">
-            <div class="kpi-label">${escH(k.label)}</div>
+            <div class="kpi-label">${escH(k.label)}${k.tooltip ? `<span class="kpi-tip" data-tip="${escH(k.tooltip)}">i</span>` : ''}</div>
             <div class="kpi-value" style="color:${k.color}">${escH(String(k.value))}</div>
           </div>`).join('')}
       </div>
@@ -847,7 +848,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
         <th>Total Revenue</th>
         <th>Total Expenses</th>
         <th>Net Income</th>
-        <th>Net Margin %</th>
+        <th title="Economic basis: each lab's net income ÷ its revenue, with Truss's client-salary pass-through netted out (only service fees + salary margin count as Truss revenue). The header tile above uses gross revenue instead, which is why the totals differ.">Net Margin % <span style="opacity:0.5;font-size:0.9em">ⓘ</span></th>
       </tr></thead>
       <tbody>`;
 
@@ -894,7 +895,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       <td class="num pos">${fmtDollar(totalRev)}</td>
       <td class="num">${fmtDollar(totalExp)}</td>
       <td class="num${totalNet >= 0 ? ' pos' : ' neg-val'}">${fmtDollar(totalNet)}</td>
-      <td class="num${totalNetMargin != null && totalNetMargin >= 0 ? ' pos' : ' neg-val'}">${fmtPct(totalNetMargin)}</td>
+      <td class="num${totalNetMargin != null && totalNetMargin >= 0 ? ' pos' : ' neg-val'}" title="Economic basis: company net income ÷ economic revenue (Truss pass-through netted out). The header tile's Net Margin divides the same net income by gross revenue including pass-through, so it reads lower.">${fmtPct(totalNetMargin)}</td>
     </tr>`;
 
     html += `</tbody></table></div></div>`;
@@ -931,7 +932,10 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       { label: 'Revenue',        value: fmtKPI(kpis.revenue),       color },
       { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)' },
       { label: 'Gross Profit',   value: fmtKPI(kpis.grossProfit),   color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
-      { label: 'Net Margin',     value: fmtPct(kpis.netMarginPct),  color: 'var(--muted)' },
+      { label: 'Net Margin',     value: fmtPct(kpis.netMarginPct),  color: 'var(--muted)',
+        tooltip: labKey === 'Truss'
+          ? 'Gross basis: net income ÷ this tab\'s full income, INCLUDING client-salary pass-through — so it reads much lower than the Overview BU table\'s Truss margin, which nets the pass-through out. Same profit, different revenue denominator.'
+          : 'This lab\'s net operating income ÷ its total income (both shown in the table below), after all allocation rules.' },
       { label: 'Total Expenses', value: fmtKPI(kpis.totalExpenses), color: 'var(--text)' },
       { label: 'Net Income (Est.)', value: fmtKPI(kpis.netOpIncome), color: kpis.netOpIncome >= 0 ? 'var(--action)' : 'var(--neg)' },
     ];

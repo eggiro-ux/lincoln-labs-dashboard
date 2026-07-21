@@ -379,6 +379,8 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       </div>
       <button class="seg-btn" id="feeToggle" onclick="toggleInternalFees()"
               title="When on, labs pay Truss $400/hire/month for offshore recruiting & HR support (synthetic, zero-sum)">○ Truss fees</button>
+      <button class="seg-btn" id="caboodleToggle" onclick="toggleCaboodleBooks()"
+              title="When on, Caboodle's standalone books (Constance's month-end exports) fold into the company totals and BU table. Off = Lincoln Labs books only; LL-paid Caboodle items always show either way.">○ Caboodle books</button>
       <button class="seg-btn" id="refreshBtn" onclick="load()">↺ Refresh</button>
       <button id="themeBtn" onclick="toggleTheme()">☀</button>
     </div>
@@ -523,6 +525,36 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
   };
   paintFeeToggle();
 
+  // ── Caboodle standalone-books toggle (default off) ─────────────────────────
+  // Caboodle's own books always render on the Caboodle tab; this toggle only
+  // controls whether they fold into the Overview totals and BU table. The
+  // server always returns the data, so flipping it is a pure re-render.
+  let caboodleBooksOn = localStorage.getItem('llCaboodleBooks') === '1';
+  function paintCaboodleToggle() {
+    const b = document.getElementById('caboodleToggle');
+    b.textContent = (caboodleBooksOn ? '● ' : '○ ') + 'Caboodle books';
+    b.style.borderColor = caboodleBooksOn ? 'var(--action)' : '';
+    b.style.color = caboodleBooksOn ? 'var(--action)' : '';
+  }
+  window.toggleCaboodleBooks = function () {
+    caboodleBooksOn = !caboodleBooksOn;
+    localStorage.setItem('llCaboodleBooks', caboodleBooksOn ? '1' : '0');
+    paintCaboodleToggle();
+    if (data) { renderHeaderKPIs(); renderTabContent(); }
+  };
+  paintCaboodleToggle();
+
+  // Caboodle-books income/expense vectors aligned to the displayed months —
+  // zeros when the toggle is off or the data is missing.
+  function caboodleAdjVectors() {
+    const n = ((data && data.months) || []).length;
+    const zero = () => Array(n).fill(0);
+    if (!caboodleBooksOn || !data || !data.caboodleBooks) return { inc: zero(), exp: zero() };
+    const fold = lines => (lines || []).reduce(
+      (acc, l) => acc.map((v, i) => v + (l.values[i] || 0)), zero());
+    return { inc: fold(data.caboodleBooks.income), exp: fold(data.caboodleBooks.expenses) };
+  }
+
   // ── Accounting method ──────────────────────────────────────────────────────
   window.setAM = function (val) {
     if (am === val) return;
@@ -555,13 +587,21 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const el = document.getElementById('headerKpis');
     if (!data) { el.innerHTML = ''; return; }
     const s = data.summary;
-    const totalRev = sum(s.totalIncome);
-    const gp       = sum(s.grossProfit);
-    const net      = sum(s.netIncome);
-    const nm       = totalRev ? net / totalRev * 100 : null;
+    let totalRev = sum(s.totalIncome);
+    let gp       = sum(s.grossProfit);
+    let net      = sum(s.netIncome);
 
+    // Pass-through must come from the RAW figures — Caboodle books appear on
+    // both sides of the subtraction, so compute it before folding them in.
     const buEconRev   = (data.buRows || []).reduce((s, r) => s + (r.totalRevenue || 0), 0);
     const passThrough = totalRev - buEconRev;
+
+    const cb = caboodleAdjVectors();
+    const cbInc = sum(cb.inc), cbExp = sum(cb.exp);
+    totalRev += cbInc;
+    gp       += cbInc;          // Caboodle books have no COGS lines
+    net      += cbInc - cbExp;
+    const nm = totalRev ? net / totalRev * 100 : null;
 
     const pills = [
       { label: 'Total Revenue', value: fmtKPI(totalRev), color: 'var(--action)' },
@@ -608,7 +648,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       case 'AwesomeAPI':       el.innerHTML = renderLabTab('AwesomeAPI'); break;
       case 'Apps':             el.innerHTML = renderLabTab('Apps'); break;
       case 'Lincoln Labs Co.': el.innerHTML = renderLabTab('Lincoln Labs'); break;
-      case 'Caboodle':         el.innerHTML = renderLabTab('Caboodle'); break;
+      case 'Caboodle':         el.innerHTML = renderCaboodleTab(); break;
       case 'AI Analysis':      renderInsightsTab(el); break;
       case 'Unassigned':       el.innerHTML = renderUnassignedTab(); break;
       default:                 el.innerHTML = '<div class="state-msg">Tab not found.</div>';
@@ -814,27 +854,40 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       : `${first.split(' ')[0]}–${last}`;
 
     // Summary KPIs
-    const totInc = sum(s.totalIncome);
     const totCOGS = sum(s.totalCOGS);
-    const gp      = sum(s.grossProfit);
-    const gm      = totInc ? gp / totInc * 100 : null;
-    const totExp  = sum(s.totalExpenses);
     const netOp   = sum(s.netOpIncome);
-    const netInc  = sum(s.netIncome);
 
     // Pass-through for the CURRENT period: gross revenue minus the BU table's
     // economic revenue — recomputed every load so the tooltip never goes stale.
+    // Uses RAW figures on both sides (Caboodle books cancel out of it).
+    const rawTotInc   = sum(s.totalIncome);
     const buEconRev   = (data.buRows || []).reduce((s, r) => s + (r.totalRevenue || 0), 0);
-    const passThrough = totInc - buEconRev;
+    const passThrough = rawTotInc - buEconRev;
+
+    // Fold Caboodle's standalone books in when the toggle is on.
+    const cb = caboodleAdjVectors();
+    const cbInc = sum(cb.inc), cbExp = sum(cb.exp);
+    const cbOn  = cbInc !== 0 || cbExp !== 0;
+    const totInc = rawTotInc + cbInc;
+    const gp     = sum(s.grossProfit) + cbInc;   // books have no COGS lines
+    const gm     = totInc ? gp / totInc * 100 : null;
+    const totExp = sum(s.totalExpenses) + cbExp;
+    const netInc = sum(s.netIncome) + cbInc - cbExp;
+    const cbTip  = cbOn
+      ? ` Includes Caboodle's standalone books (toggle on): +${fmtKPI(cbInc)} income, +${fmtKPI(cbExp)} expenses.`
+      : '';
 
     const summaryKPIs = [
-      { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)' },
+      { label: 'Total Revenue',    value: fmtKPI(totInc),  color: 'var(--action)',
+        ...(cbOn ? { tooltip: `Includes ${fmtKPI(cbInc)} of income from Caboodle's standalone books (Caboodle-books toggle is on).` } : {}) },
       { label: 'Total COGS',       value: fmtKPI(totCOGS), color: 'var(--text)' },
       { label: 'Gross Profit',     value: fmtKPI(gp),      color: gp >= 0 ? 'var(--action)' : 'var(--neg)' },
       { label: 'Net Margin',       value: fmtPct(totInc ? netInc / totInc * 100 : null), color: 'var(--muted)',
-        tooltip: `Gross basis: net income ÷ ALL revenue, including the ${fmtKPI(passThrough)} of Truss client-salary pass-through (this period) that flows in as income and back out as COGS. The BU table below nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.` },
-      { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)' },
-      { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)' },
+        tooltip: `Gross basis: net income ÷ ALL revenue, including the ${fmtKPI(passThrough)} of Truss client-salary pass-through (this period) that flows in as income and back out as COGS. The BU table below nets that pass-through out, so its total margin is higher — same profit, different revenue denominator.${cbTip}` },
+      { label: 'Total Expenses',   value: fmtKPI(totExp),  color: 'var(--text)',
+        ...(cbOn ? { tooltip: `Includes ${fmtKPI(cbExp)} of expenses from Caboodle's standalone books (Caboodle-books toggle is on).` } : {}) },
+      { label: 'Net Income',       value: fmtKPI(netInc),  color: netInc >= 0 ? 'var(--action)' : 'var(--neg)',
+        ...(cbOn ? { tooltip: `Includes ${fmtKPI(cbInc - cbExp)} of net income from Caboodle's standalone books (Caboodle-books toggle is on).` } : {}) },
     ];
 
     // Section 1: Company Summary
@@ -850,7 +903,20 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     </div>`;
 
     // Section 2: By Business Unit table
-    const buRows = data.buRows || [];
+    // With the Caboodle-books toggle on, the Caboodle row absorbs the
+    // standalone-books income/expenses so the BU table foots to the tiles.
+    let buRows = data.buRows || [];
+    if (cbOn) {
+      buRows = buRows.map(r => {
+        if (r.name !== 'Caboodle') return r;
+        const monthRevenue  = (r.monthRevenue || []).map((v, i) => (v || 0) + cb.inc[i]);
+        const totalRevenue  = (r.totalRevenue  || 0) + cbInc;
+        const totalExpenses = (r.totalExpenses || 0) + cbExp;
+        const netIncome     = (r.netIncome ?? 0) + cbInc - cbExp;
+        return { ...r, monthRevenue, totalRevenue, totalExpenses, netIncome,
+                 netMarginPct: totalRevenue ? netIncome / totalRevenue * 100 : null };
+      });
+    }
 
     // Compute totals for BU table footer
     let totalRev = 0, totalExp = 0, totalNet = 0;
@@ -980,6 +1046,90 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
 
     // P&L table
     html += buildPLTable(labData.rows || [], months, partial);
+
+    return html;
+  }
+
+  // ── CABOODLE TAB ──────────────────────────────────────────────────────────
+  // Two clearly separated books: Caboodle's own P&L (Constance's month-end
+  // exports, reconciled against bank + Stripe) and the Caboodle items paid
+  // from Lincoln Labs accounts (already on LL's books, always in Overview).
+  function renderCaboodleTab() {
+    const cbData  = data.caboodleBooks;
+    const labData = (data.labs && data.labs['Caboodle']) || {};
+    if (!cbData) return renderLabTab('Caboodle');
+
+    const months  = data.months;
+    const partial = data.partialMonths || [];
+    const color   = LAB_COLORS['Caboodle'] || 'var(--muted)';
+    const n       = months.length;
+    const zeros   = () => Array(n).fill(0);
+    const foldVals = lines => (lines || []).reduce(
+      (acc, l) => acc.map((v, i) => v + (l.values[i] || 0)), zeros());
+
+    const srcTag = l =>
+      l.source === 'bank-derived'   ? `${l.label} · from bank statement` :
+      l.source === 'stripe-derived' ? `${l.label} · from Stripe`         : l.label;
+
+    const incVals   = foldVals(cbData.income);
+    const expVals   = foldVals(cbData.expenses);
+    const booksInc  = sum(incVals);
+    const booksExp  = sum(expVals);
+    const booksNet  = booksInc - booksExp;
+    const k         = labData.kpis || {};
+    const llPaidNet = k.netOpIncome || 0;
+    const combined  = booksNet + llPaidNet;
+
+    let html = `<div class="lab-subtitle" style="color:${color}">CABOODLE — STANDALONE BOOKS + LINCOLN LABS-PAID ITEMS</div>`;
+
+    html += buildKPIStrip([
+      { label: 'Books Revenue',  value: fmtKPI(booksInc), color,
+        tooltip: 'Income on Caboodle\'s own books: gross Stripe sales, NewzKingSalmon, and the Bubbies retainer. From Constance\'s month-end exports.' },
+      { label: 'Books Expenses', value: fmtKPI(booksExp), color: 'var(--text)',
+        tooltip: 'Expenses on Caboodle\'s own books, including the Astha IT Payoneer payments that appear only in the bank statement (not on the QBO P&L).' },
+      { label: 'Books Net Income', value: fmtKPI(booksNet), color: booksNet >= 0 ? 'var(--action)' : 'var(--neg)',
+        tooltip: 'Caboodle\'s standalone profitability per its own reconciled books (QBO + bank/Stripe adjustments).' },
+      { label: 'Paid by Lincoln Labs', value: fmtKPI(k.totalExpenses), color: 'var(--text)',
+        tooltip: 'Caboodle items paid from Lincoln Labs accounts. These live on LL\'s books and are always included in the company Overview, regardless of the Caboodle-books toggle.' },
+      { label: 'Combined Net', value: fmtKPI(combined), color: combined >= 0 ? 'var(--action)' : 'var(--neg)',
+        tooltip: 'Books net income plus the LL-paid Caboodle items: the total economics of Caboodle across both sets of books.' },
+    ]);
+
+    // Section 1: Caboodle's own P&L
+    const rows = [];
+    rows.push({ label: 'INCOME — CABOODLE BOOKS', type: 'section_header' });
+    (cbData.income || []).forEach(l => rows.push({ label: srcTag(l), values: l.values, type: 'row' }));
+    rows.push({ label: 'Total Income', values: incVals, type: 'total_income' });
+    rows.push({ label: 'EXPENSES — CABOODLE BOOKS', type: 'section_header' });
+    (cbData.expenses || []).forEach(l => rows.push({ label: srcTag(l), values: l.values, type: 'row' }));
+    rows.push({ label: 'Total Expenses', values: expVals, type: 'total_expenses' });
+    rows.push({ label: 'Net Income — Caboodle Books', values: incVals.map((v, i) => v - expVals[i]), type: 'net_income' });
+
+    html += `<div class="section-gap">
+      <div class="section-label">Caboodle Books — ${escH(cbData.note || 'Constance\'s month-end records')}</div>
+      ${buildPLTable(rows, months, partial)}
+      <div style="font-size:0.7rem;color:var(--muted);margin-top:8px">
+        Lines marked "· from bank statement" or "· from Stripe" were reconciled from those sources and are not (yet) on the QBO P&amp;L.
+        These figures live on Caboodle's own books and only enter the company Overview when the Caboodle-books toggle is on.
+      </div>
+    </div>`;
+
+    // Section 2: flagged intercompany activity (excluded from both P&Ls)
+    if ((cbData.flagged || []).length > 0) {
+      html += `<div class="section-gap">
+        <div class="section-label">Flagged — Intercompany Activity (excluded from P&amp;L)</div>
+        ${cbData.flagged.map(f => `
+          <div style="border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:0.78rem;color:var(--muted);line-height:1.5">
+            ⚑ <strong style="color:var(--text)">${escH(f.label)}</strong> — ${fmtDollar(f.amount)} (${escH(f.date)})<br>${escH(f.note)}
+          </div>`).join('')}
+      </div>`;
+    }
+
+    // Section 3: LL-paid Caboodle items (unchanged from before)
+    html += `<div class="section-gap">
+      <div class="section-label">Paid by Lincoln Labs — from LL's books (always in company Overview)</div>
+      ${buildPLTable(labData.rows || [], months, partial)}
+    </div>`;
 
     return html;
   }

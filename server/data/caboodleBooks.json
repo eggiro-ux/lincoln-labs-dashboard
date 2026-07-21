@@ -1,0 +1,60 @@
+{
+  "asOf": "2026-07-21",
+  "note": "Jan–Jun 2026 · from Constance's month-end exports",
+  "sourceFiles": "QBO P&L (cash + accrual), Caboodle bank statement, Stripe balance history — reconciled 2026-07-21. July partial-month data deliberately excluded; folds in with Constance's July month-end export.",
+  "months": ["2026-01", "2026-02", "2026-03", "2026-04", "2026-05", "2026-06"],
+  "accrual": {
+    "income": [
+      { "label": "Sales (Stripe + NewzKingSalmon)", "source": "qbo", "values": [2775, 4154, 5114, 5364, 2034, 4579] },
+      { "label": "Sales — June Stripe charges not yet in QBO", "source": "stripe-derived", "values": [0, 0, 0, 0, 0, 3127] },
+      { "label": "Services (Bubbies retainer)", "source": "qbo", "values": [2500, 2500, 5000, 2500, 2500, 2500] }
+    ],
+    "expenses": [
+      { "label": "Advertising & marketing", "source": "qbo", "values": [20, 2555.75, 259, 0, 1599, 0] },
+      { "label": "Contract labor (Kate Goldrick + checks)", "source": "qbo", "values": [2273, 3593, 2273, 2273, 3273, 3153] },
+      { "label": "Offshore development — Astha IT (Payoneer)", "source": "bank-derived", "values": [3200, 4300, 4300, 4300, 0, 9900] },
+      { "label": "Server Service Expense (AWS)", "source": "qbo", "values": [367.21, 352.01, 316.71, 345.17, 335.44, 346.77] },
+      { "label": "Software & apps", "source": "qbo", "values": [230.98, 243.12, 433.83, 407.82, 284.7, 134.99] },
+      { "label": "Stripe merchant account fees", "source": "qbo", "values": [96.19, 118.63, 150.31, 151.2, 48.37, 130.14] },
+      { "label": "Stripe fees — June true-up", "source": "stripe-derived", "values": [0, 0, 0, 0, 0, 91.59] },
+      { "label": "Legal & accounting services", "source": "qbo", "values": [37.5, 37.5, 0, 767.5, 0, 0] },
+      { "label": "Meals & entertainment", "source": "qbo", "values": [0, 0, 458.05, 0, 0, 235.29] },
+      { "label": "Travel", "source": "qbo", "values": [0, 0, 0, 0, 795.79, 50] },
+      { "label": "Office supplies", "source": "qbo", "values": [0, 0, 0, 0, 45.91, 0] },
+      { "label": "Memberships & subscriptions", "source": "qbo", "values": [0, 0, 120, 0, 0, 0] },
+      { "label": "Interest paid", "source": "qbo", "values": [16.51, 0, 0, 23.61, 34.74, 55.21] },
+      { "label": "Bank fees & service charges", "source": "qbo", "values": [5, 5, 5, 5, 5, 5] }
+    ]
+  },
+  "cash": {
+    "income": [
+      { "label": "Sales (Stripe + NewzKingSalmon)", "source": "qbo", "values": [2775, 4154, 5114, 5364, 2034, 4579] },
+      { "label": "Sales — June Stripe charges not yet in QBO", "source": "stripe-derived", "values": [0, 0, 0, 0, 0, 3127] },
+      { "label": "Services (Bubbies retainer)", "source": "qbo", "values": [5000, 0, 2500, 2500, 2500, 2500] }
+    ],
+    "expenses": [
+      { "label": "Advertising & marketing", "source": "qbo", "values": [20, 2555.75, 259, 0, 1599, 0] },
+      { "label": "Contract labor (Kate Goldrick + checks)", "source": "qbo", "values": [2273, 3593, 2273, 2273, 3273, 3153] },
+      { "label": "Offshore development — Astha IT (Payoneer)", "source": "bank-derived", "values": [3200, 4300, 4300, 4300, 0, 9900] },
+      { "label": "Server Service Expense (AWS)", "source": "qbo", "values": [367.21, 352.01, 316.71, 345.17, 335.44, 346.77] },
+      { "label": "Software & apps", "source": "qbo", "values": [230.98, 243.12, 433.83, 407.82, 284.7, 134.99] },
+      { "label": "Stripe merchant account fees", "source": "qbo", "values": [96.19, 118.63, 150.31, 151.2, 48.37, 130.14] },
+      { "label": "Stripe fees — June true-up", "source": "stripe-derived", "values": [0, 0, 0, 0, 0, 91.59] },
+      { "label": "Legal & accounting services", "source": "qbo", "values": [37.5, 37.5, 0, 767.5, 0, 0] },
+      { "label": "Meals & entertainment", "source": "qbo", "values": [0, 0, 458.05, 0, 0, 235.29] },
+      { "label": "Travel", "source": "qbo", "values": [0, 0, 0, 0, 795.79, 50] },
+      { "label": "Office supplies", "source": "qbo", "values": [0, 0, 0, 0, 45.91, 0] },
+      { "label": "Memberships & subscriptions", "source": "qbo", "values": [0, 0, 120, 0, 0, 0] },
+      { "label": "Interest paid", "source": "qbo", "values": [16.51, 0, 0, 23.61, 34.74, 55.21] },
+      { "label": "Bank fees & service charges", "source": "qbo", "values": [5, 5, 5, 5, 5, 5] }
+    ]
+  },
+  "flagged": [
+    {
+      "label": "Intercompany — Lincoln Labs → Caboodle → Lisa Thorson",
+      "date": "2026-06-02/03",
+      "amount": 15000,
+      "note": "Lincoln Labs wired Caboodle $15,000 ('ASSET SALE INC VIA WISE'), which went out to Lisa Thorson the next day. Acquisition money movement, not operating activity — excluded from the P&L on both sides."
+    }
+  ]
+}

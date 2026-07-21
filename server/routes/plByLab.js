@@ -798,6 +798,43 @@ try {
 } catch (err) {
   console.error('intlRoster.json not loadable (drill roster disabled):', err.message);
 }
+
+// Caboodle's standalone books — Constance's month-end exports (QBO P&L, bank
+// statement, Stripe history) reconciled offline and stored as static monthly
+// vectors. These live OUTSIDE Lincoln Labs' QBO: they never touch parsePL,
+// the conservation audit, or the default Overview totals. The front-end folds
+// them into the aggregate view only when the user flips the Caboodle-books
+// toggle.
+let CABOODLE_BOOKS = null;
+try {
+  CABOODLE_BOOKS = require('../data/caboodleBooks.json');
+} catch (err) {
+  console.error('caboodleBooks.json not loadable (Caboodle books section disabled):', err.message);
+}
+
+// Re-key the stored Caboodle vectors onto the report's month columns so the
+// front-end can align them index-for-index; months outside the stored
+// coverage (e.g. July before Constance's month-end export lands) get zeros.
+function caboodleBooksForRange(monthRanges, am) {
+  if (!CABOODLE_BOOKS) return null;
+  const basis = am === 'Cash' ? CABOODLE_BOOKS.cash : CABOODLE_BOOKS.accrual;
+  const keys  = monthRanges.map(r => (r.start || '').substring(0, 7));
+  const remap = line => ({
+    label:  line.label,
+    source: line.source,
+    values: keys.map(k => {
+      const i = CABOODLE_BOOKS.months.indexOf(k);
+      return i >= 0 ? (line.values[i] || 0) : 0;
+    }),
+  });
+  return {
+    asOf:     CABOODLE_BOOKS.asOf,
+    note:     CABOODLE_BOOKS.note,
+    income:   basis.income.map(remap),
+    expenses: basis.expenses.map(remap),
+    flagged:  CABOODLE_BOOKS.flagged || [],
+  };
+}
 // Each per-lab offshore account shows the roster rows whose Business Unit
 // belongs to that lab, across every country tab (the bookkeeper allocates
 // payroll to these accounts by BU, so the filter mirrors the books).
@@ -1669,6 +1706,7 @@ async function getPlByLabData(req, res) {
       labs,
       unassigned,
       monthRanges,
+      caboodleBooks: caboodleBooksForRange(monthRanges, am),
     });
   } catch (err) {
     const qboErr = err.response?.data;

@@ -39,6 +39,8 @@
   .flag { color:var(--neg); }
   .foot { margin-top:48px; padding-top:20px; border-top:1px solid var(--border);
           font-size:0.64rem; color:var(--muted); line-height:1.8; }
+  .trends { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:16px; margin-bottom:16px; }
+  .trend { background:var(--surface); border:1px solid var(--border); padding:18px 20px; }
 </style>
 
 <header>
@@ -62,19 +64,24 @@
     <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Actuals on Civille's P&amp;L incl. taxes &amp; benefits</div></div>
 </div>
 
+<div class="trends">
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">FTE — Jan–Jun</div><div id="t-civ-fte"></div></div>
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">All-in monthly people-cost — Jan–Jun</div><div id="t-civ-cost"></div></div>
+</div>
+
 <div class="cols">
   <div class="card">
-    <div class="lbl" style="margin-bottom:10px">US employees — 10 · $86,330 June</div>
+    <div class="lbl" style="margin-bottom:10px">US employees — 10 · $86,330 June · base/yr + H1 commission &amp; bonus</div>
     <table>
-      <tr><td class="who"><span class="nm">Wes Lungwitz</span><span class="rl">Managing Partner — Civille</span></td><td class="num">$115k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Calvin Krusick</span><span class="rl">Director of Product &amp; Marketing</span></td><td class="num">$105k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Paul Cashman</span><span class="rl">VP of Sales &amp; Business Development</span></td><td class="num">$100k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Clint Monette</span><span class="rl">Director of Client Success</span></td><td class="num">$70k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Logan Verboomen</span><span class="rl">Account Executive</span></td><td class="num">$60k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Wes Lungwitz</span><span class="rl">Managing Partner — Civille · +$45.8k H1 commission</span></td><td class="num">$115k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Calvin Krusick</span><span class="rl">Director of Product &amp; Marketing · +$6.5k H1 comm/bonus</span></td><td class="num">$105k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Paul Cashman</span><span class="rl">VP of Sales &amp; Business Development · +$30.2k H1 commission</span></td><td class="num">$100k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Clint Monette</span><span class="rl">Director of Client Success · +$4.8k H1 commission</span></td><td class="num">$70k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Logan Verboomen</span><span class="rl">Account Executive · +$3.2k H1 comm/bonus</span></td><td class="num">$60k/yr</td></tr>
       <tr><td class="who"><span class="nm">Bowen Hobbs</span><span class="rl">Senior Brand Designer</span></td><td class="num">$55k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Katherine Winninghoff</span><span class="rl">Digital Marketing Coordinator</span></td><td class="num">$50k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Eric Endres</span><span class="rl">Account Manager</span></td><td class="num">$48k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Jordan Miller</span><span class="rl">Account Manager</span></td><td class="num">$48k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Katherine Winninghoff</span><span class="rl">Digital Marketing Coordinator · +$1.8k H1 comm/bonus</span></td><td class="num">$50k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Eric Endres</span><span class="rl">Account Manager · started Feb</span></td><td class="num">$48k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Jordan Miller</span><span class="rl">Account Manager · started Jun</span></td><td class="num">$48k/yr</td></tr>
       <tr><td class="who"><span class="nm">Taylor Sleger</span><span class="rl">Account Manager</span></td><td class="num">$42k/yr</td></tr>
     </table>
     <div class="shared">Shared: <span class="tag">Eric Giroux 35%</span> · <span class="tag">Danil Shingarev 10%</span> of Lincoln&nbsp;Labs payroll bucket</div>
@@ -139,6 +146,11 @@
     <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Actuals on AwesomeAPI's P&amp;L incl. taxes &amp; benefits</div></div>
 </div>
 
+<div class="trends">
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">FTE — Jan–Jun</div><div id="t-aapi-fte"></div></div>
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">All-in monthly people-cost — Jan–Jun</div><div id="t-aapi-cost"></div></div>
+</div>
+
 <div class="cols">
   <div class="card">
     <div class="lbl" style="margin-bottom:10px">US employees — 0 dedicated · $7,217 June (shared slices)</div>
@@ -170,23 +182,29 @@
   <h2 class="disp" style="font-size:1.6rem;color:#a855f7">Truss</h2></div>
 
 <div class="kpis">
-  <div class="kpi"><div class="lbl">Employees (FTE)</div><div class="v" style="color:var(--action)">15.6</div>
-    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">15 employees + shared fractions · contractors excluded</div></div>
-  <div class="kpi"><div class="lbl">People</div><div class="v">21</div>
-    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">15 dedicated + 6 shared</div></div>
-  <div class="kpi"><div class="lbl">June people-cost</div><div class="v">$78,234</div>
+  <div class="kpi"><div class="lbl">Employees (FTE)</div><div class="v" style="color:var(--action)">16.6</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">16 employees (1 part-time) + shared fractions · contractors excluded</div></div>
+  <div class="kpi"><div class="lbl">People</div><div class="v">22</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">16 dedicated + 6 shared</div></div>
+  <div class="kpi"><div class="lbl">June people-cost</div><div class="v">$78,235</div>
     <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Truss's own team only — client pass-through excluded</div></div>
+</div>
+
+<div class="trends">
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">FTE — Jan–Jun</div><div id="t-truss-fte"></div></div>
+  <div class="trend"><div class="lbl" style="margin-bottom:10px">All-in monthly people-cost — Jan–Jun</div><div id="t-truss-cost"></div></div>
 </div>
 
 <div class="cols">
   <div class="card">
-    <div class="lbl" style="margin-bottom:10px">US employees — 3 · $46,878 June</div>
+    <div class="lbl" style="margin-bottom:10px">US employees — 4 · $46,878 June · base/yr + H1 commission &amp; bonus</div>
     <table>
-      <tr><td class="who"><span class="nm">Julia Collins</span><span class="rl">Managing Partner — Truss</span></td><td class="num">$112k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Kadir Fuzaylov</span><span class="rl">Head of Product &amp; Technology</span></td><td class="num">$100k/yr</td></tr>
-      <tr><td class="who"><span class="nm">Ilkhom Ikramov</span><span class="rl">Strategic Growth Manager</span></td><td class="num">$80k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Julia Collins</span><span class="rl">Managing Partner — Truss · +$10.5k H1 commission</span></td><td class="num">$112k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Kadir Fuzaylov</span><span class="rl">Head of Product &amp; Technology · +$7.9k H1 comm/bonus</span></td><td class="num">$100k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Ilkhom Ikramov</span><span class="rl">Strategic Growth Manager · started Apr</span></td><td class="num">$80k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Ariana Chojnacki</span><span class="rl">Growth Marketing Associate · part-time · departed Jul 17</span></td><td class="num">$42k/yr</td></tr>
     </table>
-    <div style="font-size:0.62rem;color:var(--muted);margin-top:8px;line-height:1.6">June wages actual $32.1k vs $24.3k base — includes bonus/commission.</div>
+    <div style="font-size:0.62rem;color:var(--muted);margin-top:8px;line-height:1.6">June wages actual $32.1k vs base run-rate — the gap is commission and bonus.</div>
     <div class="shared">Shared: <span class="tag">Eric Giroux 25%</span> · <span class="tag">Danil Shingarev 10%</span> of Lincoln&nbsp;Labs payroll bucket</div>
   </div>
 
@@ -223,6 +241,14 @@
   Truss's ~$723k/mo of client-salary pass-through is excluded throughout — it is client-reimbursed payroll, not Truss's own people-cost.
 </div>
 
+<div class="note">
+  Trend methodology: cost lines are ALL-IN employer cost from the P&amp;L actuals — gross wages including commissions and bonuses,
+  employer payroll taxes, health, dental &amp; vision, offshore payroll, contractors, and each lab's allocated share of cross-lab people.
+  FTE lines count US employees by actual hire/termination month (Gusto), plus Quinn Dunn, plus shared-person fractions.
+  Overseas headcounts come from the Feb and Jun workbook snapshots (nearest snapshot carried between them) — monthly precision
+  begins with the July workbook. Gusto flags Logan Verboomen, Taylor Sleger, and Ariana Chojnacki as part-time; they count as 1 FTE here.
+</div>
+
 <div class="foot">
   Sources: Gusto (US W-2 roster &amp; salaries) · International Accounting workbook via intlRoster (overseas gross) ·
   QBO P&amp;L June actuals via the lab dashboard (dollar totals, incl. payroll taxes &amp; benefits) ·
@@ -231,6 +257,42 @@
 </div>
 
 <script>
+  const TRENDS = {
+    civ:   { fte: [28.7, 30.7, 28.7, 28.7, 28.7, 29.7], cost: [127940, 119061, 155838, 150791, 140418, 138684], color: '#22c55e' },
+    aapi:  { fte: [6.3, 6.3, 6.3, 6.3, 5.3, 5.3],       cost: [28372, 27177, 36116, 30639, 30494, 31110],       color: '#eab308' },
+    truss: { fte: [13.6, 13.6, 13.6, 14.6, 16.6, 16.6], cost: [66952, 63349, 71110, 73589, 75215, 78235],       color: '#a855f7' },
+  };
+  const T_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
+
+  function chartSVG(vals, color, fmt) {
+    const W = 640, H = 180, PL = 56, PR = 10, PT = 16, PB = 28;
+    const xs = vals.map((_, i) => PL + (W - PL - PR) * (i + 0.5) / vals.length);
+    const min = Math.min(...vals), max = Math.max(...vals);
+    const pad = (max - min) * 0.3 || Math.abs(max) * 0.05 || 1;
+    const lo = min - pad, hi = max + pad;
+    const y = v => H - PB - (v - lo) / (hi - lo) * (H - PT - PB);
+    let s = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;display:block" role="img">`;
+    [lo, (lo + hi) / 2, hi].forEach(t => {
+      s += `<line x1="${PL}" x2="${W - PR}" y1="${y(t)}" y2="${y(t)}" stroke="var(--border)" stroke-width="1"/>`;
+      s += `<text x="${PL - 6}" y="${y(t) + 3}" text-anchor="end" font-size="10" fill="var(--muted)" font-family="'DM Mono',monospace">${fmt(t)}</text>`;
+    });
+    s += `<polyline fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" points="${vals.map((v, i) => xs[i] + ',' + y(v)).join(' ')}"/>`;
+    vals.forEach((v, i) => {
+      s += `<circle cx="${xs[i]}" cy="${y(v)}" r="3.5" fill="var(--surface)" stroke="${color}" stroke-width="2"/>`;
+      s += `<text x="${xs[i]}" y="${H - 8}" text-anchor="middle" font-size="10" fill="var(--muted)" font-family="'DM Mono',monospace">${T_MONTHS[i]}</text>`;
+    });
+    const li = vals.length - 1;
+    s += `<text x="${xs[li]}" y="${y(vals[li]) - 9}" text-anchor="middle" font-size="11" fill="${color}" font-family="'DM Mono',monospace">${fmt(vals[li])}</text>`;
+    return s + '</svg>';
+  }
+
+  const fmtFte  = v => (Math.round(v * 10) / 10).toFixed(1);
+  const fmtCost = v => '$' + Math.round(v / 1000) + 'k';
+  for (const [key, t] of Object.entries(TRENDS)) {
+    document.getElementById(`t-${key}-fte`).innerHTML  = chartSVG(t.fte,  t.color, fmtFte);
+    document.getElementById(`t-${key}-cost`).innerHTML = chartSVG(t.cost, t.color, fmtCost);
+  }
+
   const btn = document.getElementById('themeBtn');
   const saved = localStorage.getItem('llRosterTheme');
   if (saved === 'light') document.documentElement.setAttribute('data-theme','light');

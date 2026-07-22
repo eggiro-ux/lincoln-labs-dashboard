@@ -1,0 +1,243 @@
+<title>Lincoln Labs — Lab Rosters</title>
+<style>
+  :root {
+    --bg:#0f0f0e; --surface:#191917; --surfaceHigh:#1d1d1b; --border:#2a2a27;
+    --text:#e8e6e0; --muted:#7a7870; --action:#4ade80; --neg:#f87171;
+  }
+  :root[data-theme="light"], .light {
+    --bg:#f4f4f2; --surface:#ffffff; --surfaceHigh:#e8e7e3; --border:#c8c6c0;
+    --text:#111110; --muted:#5a5850; --action:#15803d; --neg:#b91c1c;
+  }
+  *,*::before,*::after { box-sizing:border-box; margin:0; padding:0; }
+  html,body { background:var(--bg); }
+  body { color:var(--text); font-family:'DM Mono','SF Mono',Menlo,monospace; font-size:0.82rem;
+         padding:40px 48px; transition:background 0.2s; }
+  @media (max-width:720px){ body{ padding:24px 16px; } }
+  button { outline:none; font-family:inherit; cursor:pointer; }
+  h1,.disp { font-family:'Fraunces',Georgia,serif; font-weight:300; letter-spacing:-0.02em; line-height:1; }
+  .lbl { font-size:0.62rem; letter-spacing:0.09em; text-transform:uppercase; color:var(--muted); }
+  header { display:flex; justify-content:space-between; align-items:flex-end;
+           margin-bottom:32px; padding-bottom:24px; border-bottom:1px solid var(--border); }
+  .kpis { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin:20px 0 24px; }
+  .kpi { background:var(--surface); border:1px solid var(--border); padding:18px 20px; }
+  .kpi .v { font-family:'Fraunces',Georgia,serif; font-weight:300; font-size:2rem; letter-spacing:-0.02em; line-height:1; margin-top:8px; }
+  .cols { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
+  .card { background:var(--surface); border:1px solid var(--border); padding:18px 20px; }
+  table { width:100%; border-collapse:collapse; font-size:0.72rem; font-variant-numeric:tabular-nums; }
+  td { padding:6px 0; border-bottom:1px solid var(--border); vertical-align:top; }
+  tr:last-child td { border-bottom:none; }
+  td.num { text-align:right; white-space:nowrap; color:var(--text); }
+  td.who { color:var(--muted); padding-right:12px; }
+  td.who .nm { color:var(--text); }
+  td.who .rl { font-size:0.62rem; display:block; margin-top:1px; }
+  .shared { border-top:1px solid var(--border); margin-top:10px; padding-top:10px; font-size:0.68rem; color:var(--muted); line-height:1.7; }
+  .shared .tag { color:var(--text); }
+  .labhdr { display:flex; align-items:center; gap:10px; margin-top:44px; padding-top:8px; }
+  .dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+  .note { border:1px solid var(--border); background:var(--surface); padding:12px 16px; margin-top:16px;
+          font-size:0.68rem; color:var(--muted); line-height:1.7; }
+  .flag { color:var(--neg); }
+  .foot { margin-top:48px; padding-top:20px; border-top:1px solid var(--border);
+          font-size:0.64rem; color:var(--muted); line-height:1.8; }
+</style>
+
+<header>
+  <div>
+    <h1 style="font-size:2.2rem">Lab Rosters <em style="font-style:italic;color:var(--muted)">People &amp; Payroll</em></h1>
+    <p class="lbl" style="margin-top:6px">June 2026 · Gusto + International Workbook + QBO P&amp;L · Refreshes monthly on the 11th</p>
+  </div>
+  <button id="themeBtn" style="background:var(--surface);border:1px solid var(--border);color:var(--muted);width:36px;height:36px;display:flex;align-items:center;justify-content:center;font-size:1rem;line-height:1">☀</button>
+</header>
+
+<!-- ══════════════ CIVILLE ══════════════ -->
+<div class="labhdr"><span class="dot" style="background:#22c55e"></span>
+  <h2 class="disp" style="font-size:1.6rem;color:#22c55e">Civille</h2></div>
+
+<div class="kpis">
+  <div class="kpi"><div class="lbl">Employees (FTE)</div><div class="v" style="color:var(--action)">28.7</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">28 employees + shared fractions · contractors excluded</div></div>
+  <div class="kpi"><div class="lbl">People</div><div class="v">43</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">37 dedicated + 6 shared</div></div>
+  <div class="kpi"><div class="lbl">June people-cost</div><div class="v">$135,133</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Actuals on Civille's P&amp;L incl. taxes &amp; benefits</div></div>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">US employees — 10 · $86,330 June</div>
+    <table>
+      <tr><td class="who"><span class="nm">Wes Lungwitz</span><span class="rl">Managing Partner — Civille</span></td><td class="num">$115k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Calvin Krusick</span><span class="rl">Director of Product &amp; Marketing</span></td><td class="num">$105k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Paul Cashman</span><span class="rl">VP of Sales &amp; Business Development</span></td><td class="num">$100k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Clint Monette</span><span class="rl">Director of Client Success</span></td><td class="num">$70k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Logan Verboomen</span><span class="rl">Account Executive</span></td><td class="num">$60k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Bowen Hobbs</span><span class="rl">Senior Brand Designer</span></td><td class="num">$55k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Katherine Winninghoff</span><span class="rl">Digital Marketing Coordinator</span></td><td class="num">$50k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Eric Endres</span><span class="rl">Account Manager</span></td><td class="num">$48k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Jordan Miller</span><span class="rl">Account Manager</span></td><td class="num">$48k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Taylor Sleger</span><span class="rl">Account Manager</span></td><td class="num">$42k/yr</td></tr>
+    </table>
+    <div class="shared">Shared: <span class="tag">Eric Giroux 35%</span> · <span class="tag">Danil Shingarev 10%</span> of Lincoln&nbsp;Labs payroll bucket</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Overseas — 18 · $28,974 June</div>
+    <table>
+      <tr><td class="who"><span class="nm">Muzaffar Kholmuhammadov</span><span class="rl">Uzbekistan</span></td><td class="num">$2,404/mo</td></tr>
+      <tr><td class="who"><span class="nm">Rasul Mamashev</span><span class="rl">Uzbekistan</span></td><td class="num">$1,967/mo</td></tr>
+      <tr><td class="who"><span class="nm">Jahongir Ikromidinov</span><span class="rl">Uzbekistan</span></td><td class="num">$1,858/mo</td></tr>
+      <tr><td class="who"><span class="nm">Shakhruz Muradullaev</span><span class="rl">Uzbekistan</span></td><td class="num">$1,858/mo</td></tr>
+      <tr><td class="who"><span class="nm">Bakhtiyor Tairov</span><span class="rl">Uzbekistan</span></td><td class="num">$1,749/mo</td></tr>
+      <tr><td class="who"><span class="nm">Sardor Abduganiyev</span><span class="rl">Uzbekistan</span></td><td class="num">$1,639/mo</td></tr>
+      <tr><td class="who"><span class="nm">Kambar Kidiraliev</span><span class="rl">Uzbekistan · → Truss CMS from July</span></td><td class="num">$1,530/mo</td></tr>
+      <tr><td class="who"><span class="nm">Abdurashid Abdullaev</span><span class="rl">Uzbekistan · → Truss CMS from July</span></td><td class="num">$1,421/mo</td></tr>
+      <tr><td class="who"><span class="nm">Abdulaziz Abdullayev</span><span class="rl">Uzbekistan</span></td><td class="num">$1,311/mo</td></tr>
+      <tr><td class="who"><span class="nm">Darya Simakova</span><span class="rl">Uzbekistan</span></td><td class="num">$1,202/mo</td></tr>
+      <tr><td class="who"><span class="nm">Otabek Atabayev</span><span class="rl">Uzbekistan</span></td><td class="num">$1,202/mo</td></tr>
+      <tr><td class="who"><span class="nm">Mark Kurbatov</span><span class="rl">Uzbekistan</span></td><td class="num">$1,093/mo</td></tr>
+      <tr><td class="who"><span class="nm">Nodirbek Bakhodirov</span><span class="rl">Uzbekistan</span></td><td class="num">$1,093/mo</td></tr>
+      <tr><td class="who"><span class="nm">Quandiq Kalbaev</span><span class="rl">Uzbekistan</span></td><td class="num">$874/mo</td></tr>
+      <tr><td class="who"><span class="nm">Abdunabi Abduvaxobov</span><span class="rl">Uzbekistan</span></td><td class="num">$874/mo</td></tr>
+      <tr><td class="who"><span class="nm">Diyor Baynazarov</span><span class="rl">Uzbekistan</span></td><td class="num">$765/mo</td></tr>
+      <tr><td class="who"><span class="nm">Alladdin Kurbanbayev</span><span class="rl">Uzbekistan</span></td><td class="num">$656/mo</td></tr>
+      <tr><td class="who"><span class="nm">Zurab Toidze</span><span class="rl">Georgia</span></td><td class="num">≈$1,133/mo</td></tr>
+    </table>
+    <div class="shared">Shared: <span class="tag">Temuraz Akhvlediani ~22%</span> — Director of Overseas Operations, split across four labs</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Contractors (QBO) — 9 · $19,829 June · not counted in FTE</div>
+    <table>
+      <tr><td class="who"><span class="nm">Carl Hayslett</span></td><td class="num">$2,600</td></tr>
+      <tr><td class="who"><span class="nm">Dawn Koogle</span></td><td class="num">$2,100</td></tr>
+      <tr><td class="who"><span class="nm">Theresa Carlson</span></td><td class="num">$2,050</td></tr>
+      <tr><td class="who"><span class="nm">Nikhil Stride</span></td><td class="num">$1,460</td></tr>
+      <tr><td class="who"><span class="nm">James Johnson</span></td><td class="num">$1,000</td></tr>
+      <tr><td class="who"><span class="nm">Alison O'Leary</span></td><td class="num">$950</td></tr>
+      <tr><td class="who"><span class="nm">Aleksandra Marinova</span></td><td class="num">$700</td></tr>
+      <tr><td class="who"><span class="nm">Brittany Tatko</span></td><td class="num">$400</td></tr>
+      <tr><td class="who"><span class="nm">Carrie Hildebrand</span></td><td class="num">$147</td></tr>
+    </table>
+    <div class="shared">Shared: <span class="tag">Farrukh Umarov &amp; Eric Hoopman 25% — $6,499</span> · <span class="tag">Egor Blajenov 35% — $1,923</span></div>
+    <div class="shared"><span class="flag">⚑ Quinn Dunn</span> — expected on this roster but not found in Gusto, QBO onshore-labor accounts, or Ramp (Jan–Jun). Needs a pointer to where he's paid.</div>
+  </div>
+</div>
+
+<!-- ══════════════ AWESOMEAPI ══════════════ -->
+<div class="labhdr"><span class="dot" style="background:#eab308"></span>
+  <h2 class="disp" style="font-size:1.6rem;color:#eab308">AwesomeAPI</h2></div>
+
+<div class="kpis">
+  <div class="kpi"><div class="lbl">Employees (FTE)</div><div class="v" style="color:var(--action)">5.3</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">5 overseas + shared fractions · contractors excluded</div></div>
+  <div class="kpi"><div class="lbl">People</div><div class="v">11</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">5 dedicated + 6 shared</div></div>
+  <div class="kpi"><div class="lbl">June people-cost</div><div class="v">$31,110</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Actuals on AwesomeAPI's P&amp;L incl. taxes &amp; benefits</div></div>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">US employees — 0 dedicated · $7,217 June (shared slices)</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.7">No dedicated US W-2 staff — AwesomeAPI runs on overseas engineering plus shared leadership.</div>
+    <div class="shared">Shared: <span class="tag">Eric Giroux 20%</span> · <span class="tag">Danil Shingarev 10%</span> of Lincoln&nbsp;Labs payroll bucket</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Overseas — 5 · $16,819 June</div>
+    <table>
+      <tr><td class="who"><span class="nm">Artem Panov</span><span class="rl">Kazakhstan · 80/20 with Apps</span></td><td class="num">$4,348/mo</td></tr>
+      <tr><td class="who"><span class="nm">Alexander Urazaev</span><span class="rl">Uzbekistan</span></td><td class="num">$3,607/mo</td></tr>
+      <tr><td class="who"><span class="nm">Stepan Ustinov</span><span class="rl">Georgia</span></td><td class="num">≈$3,227/mo</td></tr>
+      <tr><td class="who"><span class="nm">Shams Imomnazarov</span><span class="rl">Uzbekistan</span></td><td class="num">$2,514/mo</td></tr>
+      <tr><td class="who"><span class="nm">Said Lutfulin</span><span class="rl">Uzbekistan</span></td><td class="num">$874/mo</td></tr>
+    </table>
+    <div class="shared">Shared: <span class="tag">Temuraz Akhvlediani ~22%</span></div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Contractors (QBO) — shared only · $7,074 June · not counted in FTE</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.7">No dedicated contractors.</div>
+    <div class="shared">Shared: <span class="tag">Farrukh Umarov &amp; Eric Hoopman 25% — $6,499</span> · <span class="tag">Egor Blajenov 10% — $549</span> · Paddle.net vendor $26</div>
+  </div>
+</div>
+
+<!-- ══════════════ TRUSS ══════════════ -->
+<div class="labhdr"><span class="dot" style="background:#a855f7"></span>
+  <h2 class="disp" style="font-size:1.6rem;color:#a855f7">Truss</h2></div>
+
+<div class="kpis">
+  <div class="kpi"><div class="lbl">Employees (FTE)</div><div class="v" style="color:var(--action)">15.6</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">15 employees + shared fractions · contractors excluded</div></div>
+  <div class="kpi"><div class="lbl">People</div><div class="v">21</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">15 dedicated + 6 shared</div></div>
+  <div class="kpi"><div class="lbl">June people-cost</div><div class="v">$78,234</div>
+    <div class="lbl" style="margin-top:6px;letter-spacing:0.04em">Truss's own team only — client pass-through excluded</div></div>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">US employees — 3 · $46,878 June</div>
+    <table>
+      <tr><td class="who"><span class="nm">Julia Collins</span><span class="rl">Managing Partner — Truss</span></td><td class="num">$112k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Kadir Fuzaylov</span><span class="rl">Head of Product &amp; Technology</span></td><td class="num">$100k/yr</td></tr>
+      <tr><td class="who"><span class="nm">Ilkhom Ikramov</span><span class="rl">Strategic Growth Manager</span></td><td class="num">$80k/yr</td></tr>
+    </table>
+    <div style="font-size:0.62rem;color:var(--muted);margin-top:8px;line-height:1.6">June wages actual $32.1k vs $24.3k base — includes bonus/commission.</div>
+    <div class="shared">Shared: <span class="tag">Eric Giroux 25%</span> · <span class="tag">Danil Shingarev 10%</span> of Lincoln&nbsp;Labs payroll bucket</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Overseas — 12 · $24,857 June</div>
+    <table>
+      <tr><td class="who"><span class="nm">Makar Kondratiev</span><span class="rl">Uzbekistan</span></td><td class="num">$3,967/mo</td></tr>
+      <tr><td class="who"><span class="nm">Khusniddin Fakhritdinov</span><span class="rl">Uzbekistan</span></td><td class="num">$2,885/mo</td></tr>
+      <tr><td class="who"><span class="nm">Kate Junina</span><span class="rl">Mellow / Solar Staff</span></td><td class="num">$2,411/mo</td></tr>
+      <tr><td class="who"><span class="nm">Rustam Umarov</span><span class="rl">Uzbekistan</span></td><td class="num">$2,186/mo</td></tr>
+      <tr><td class="who"><span class="nm">Sabina Saydullaeva</span><span class="rl">Uzbekistan</span></td><td class="num">$1,984/mo</td></tr>
+      <tr><td class="who"><span class="nm">Mariam Shukhoshvili</span><span class="rl">Mellow / Solar Staff</span></td><td class="num">$1,925/mo</td></tr>
+      <tr><td class="who"><span class="nm">Laylo Khudoykulova</span><span class="rl">Uzbekistan</span></td><td class="num">$1,858/mo</td></tr>
+      <tr><td class="who"><span class="nm">Jamshid Zaripov</span><span class="rl">Uzbekistan</span></td><td class="num">$1,639/mo</td></tr>
+      <tr><td class="who"><span class="nm">Ketevan Dalakishvili</span><span class="rl">Georgia</span></td><td class="num">≈$929/mo</td></tr>
+      <tr><td class="who"><span class="nm">Nazokat Yusupjonova</span><span class="rl">Uzbekistan</span></td><td class="num">$874/mo</td></tr>
+      <tr><td class="who"><span class="nm">Sevara Zaynidinova</span><span class="rl">Uzbekistan</span></td><td class="num">$656/mo</td></tr>
+      <tr><td class="who"><span class="nm">Ekaterina Kassumova</span><span class="rl">Kazakhstan</span></td><td class="num">$224/mo</td></tr>
+    </table>
+    <div class="shared">Shared: <span class="tag">Temuraz Akhvlediani ~25%</span> (≈$6,655/mo gross, Georgia — split across four labs)</div>
+  </div>
+
+  <div class="card">
+    <div class="lbl" style="margin-bottom:10px">Contractors (QBO) — shared only · $7,323 June · not counted in FTE</div>
+    <div style="font-size:0.72rem;color:var(--muted);line-height:1.7">Farrukh Umarov is Truss's CTO on the org chart; his pay runs through the shared onshore-labor account, so his cost is split like the other cross-lab people.</div>
+    <div class="shared">Shared: <span class="tag">Farrukh Umarov &amp; Eric Hoopman 25% — $6,499</span> · <span class="tag">Egor Blajenov 15% — $824</span></div>
+  </div>
+</div>
+
+<div class="note">
+  Kambar Kidiraliev and Abdurashid Abdullaev count under Civille through June and move to Truss CMS from the July payroll —
+  July's refresh shifts Civille to 16 dedicated overseas and Truss to 14.
+  Georgia figures marked ≈ are approximate USD conversions pending the workbook's own USD column.
+  Truss's ~$723k/mo of client-salary pass-through is excluded throughout — it is client-reimbursed payroll, not Truss's own people-cost.
+</div>
+
+<div class="foot">
+  Sources: Gusto (US W-2 roster &amp; salaries) · International Accounting workbook via intlRoster (overseas gross) ·
+  QBO P&amp;L June actuals via the lab dashboard (dollar totals, incl. payroll taxes &amp; benefits) ·
+  QBO drill-downs (contractor payments). Shared-person percentages are the dashboard's allocation weights.
+  Regenerated monthly by the payroll routine on the 11th.
+</div>
+
+<script>
+  const btn = document.getElementById('themeBtn');
+  const saved = localStorage.getItem('llRosterTheme');
+  if (saved === 'light') document.documentElement.setAttribute('data-theme','light');
+  const paint = () => { btn.textContent = document.documentElement.getAttribute('data-theme')==='light' ? '☾' : '☀'; };
+  btn.onclick = () => {
+    const light = document.documentElement.getAttribute('data-theme')==='light';
+    if (light) document.documentElement.removeAttribute('data-theme');
+    else document.documentElement.setAttribute('data-theme','light');
+    localStorage.setItem('llRosterTheme', light ? 'dark' : 'light');
+    paint();
+  };
+  paint();
+</script>

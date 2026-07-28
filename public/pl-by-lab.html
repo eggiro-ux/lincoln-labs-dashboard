@@ -544,6 +544,16 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
   };
   paintCaboodleToggle();
 
+  // ── Truss economic-view toggle (default off) ───────────────────────────────
+  // Truss-tab-only: collapses the client-salary pass-through (income 196 /
+  // COGS 199) into one billed-minus-paid margin line. Pure re-render.
+  let trussEconView = localStorage.getItem('llTrussEconView') === '1';
+  window.toggleTrussEcon = function () {
+    trussEconView = !trussEconView;
+    localStorage.setItem('llTrussEconView', trussEconView ? '1' : '0');
+    if (data) renderTabContent();
+  };
+
   // Caboodle-books income/expense vectors aligned to the displayed months —
   // zeros when the toggle is off or the data is missing.
   function caboodleAdjVectors() {
@@ -1018,7 +1028,43 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     const months  = data.months;
     const partial = data.partialMonths || [];
     const color   = LAB_COLORS[labKey] || 'var(--muted)';
-    const kpis    = labData.kpis || {};
+    let kpis      = labData.kpis || {};
+    let rows      = labData.rows || [];
+
+    // ── Truss economic view ─────────────────────────────────────────────────
+    // Replaces the client-salary pass-through pair (income acct 196, COGS acct
+    // 199) with a single income line showing the billed − paid margin, and
+    // nets the pass-through out of Total Income / Total COGS. Gross profit and
+    // net income are IDENTICAL in both views — only the income framing moves.
+    const econOn = labKey === 'Truss' && trussEconView;
+    let econOk = false;
+    if (econOn) {
+      const inc196  = rows.find(r => r.accountId === '196');
+      const cogs199 = rows.find(r => r.accountId === '199');
+      if (inc196 && cogs199) {
+        econOk = true;
+        const c199   = cogs199.values || [];
+        const c199sum = sum(c199);
+        const delta  = (inc196.values || []).map((v, i) => v - (c199[i] || 0));
+        rows = rows.filter(r => r !== cogs199).map(r => {
+          if (r === inc196) return {
+            label: 'Client-Salary Margin (billed − paid pass-through)',
+            values: delta, type: 'row',
+          };
+          if (r.type === 'total_income') return { ...r, label: 'Total Income (economic)',
+            values: (r.values || []).map((v, i) => v - (c199[i] || 0)) };
+          if (r.type === 'total_cogs') return { ...r,
+            values: (r.values || []).map((v, i) => v - (c199[i] || 0)) };
+          return r;
+        });
+        const econRev = (kpis.revenue || 0) - c199sum;
+        kpis = { ...kpis,
+          revenue: econRev,
+          cogs:    (kpis.cogs || 0) - c199sum,
+          netMarginPct: econRev ? (kpis.netOpIncome || 0) / econRev * 100 : null,
+        };
+      }
+    }
 
     let html = '';
 
@@ -1027,14 +1073,28 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
       html += `<div class="lab-subtitle" style="color:${color}">${escH(labKey.toUpperCase())} — ${escH(labData.subtitle.toUpperCase())}</div>`;
     }
 
+    // Truss-only economic-view toggle
+    if (labKey === 'Truss') {
+      html += `<div style="display:flex;justify-content:flex-end;align-items:center;gap:10px;margin-bottom:14px">
+        ${econOk ? `<span style="font-size:0.62rem;color:var(--muted);letter-spacing:0.04em">PASS-THROUGH NETTED OUT · NET INCOME UNCHANGED</span>` : ''}
+        <button class="seg-btn" id="trussEconBtn" onclick="toggleTrussEcon()"
+                style="${trussEconView ? 'border-color:var(--action);color:var(--action)' : ''}"
+                title="When on: the Client Salaries income line and its offsetting COGS line collapse into one 'Client-Salary Margin' income line (billed minus paid), and Total Income excludes pass-through. Gross profit and net income are identical in both views.">${trussEconView ? '● ' : '○ '}Economic view</button>
+      </div>`;
+    }
+
     // KPI strip
     const kpiDefs = [
-      { label: 'Revenue',        value: fmtKPI(kpis.revenue),       color },
-      { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)' },
+      { label: econOk ? 'Revenue (Economic)' : 'Revenue', value: fmtKPI(kpis.revenue), color,
+        ...(econOk ? { tooltip: 'Income net of client-salary pass-through: service fees, rental, device, recruitment, forex, plus the billed-minus-paid Client-Salary Margin.' } : {}) },
+      { label: 'COGS',           value: fmtKPI(kpis.cogs),          color: 'var(--text)',
+        ...(econOk ? { tooltip: 'Excludes the client-salary pass-through expense — it is netted into the Client-Salary Margin income line above.' } : {}) },
       { label: 'Gross Profit',   value: fmtKPI(kpis.grossProfit),   color: kpis.grossProfit >= 0 ? 'var(--action)' : 'var(--neg)' },
       { label: 'Net Margin',     value: fmtPct(kpis.netMarginPct),  color: 'var(--muted)',
         tooltip: labKey === 'Truss'
-          ? 'Gross basis: net income ÷ this tab\'s full income, INCLUDING client-salary pass-through — so it reads much lower than the Overview BU table\'s Truss margin, which nets the pass-through out. Same profit, different revenue denominator.'
+          ? (econOk
+            ? 'Economic basis: net income ÷ revenue with client-salary pass-through netted out. Matches the Overview BU table\'s Truss margin.'
+            : 'Gross basis: net income ÷ this tab\'s full income, INCLUDING client-salary pass-through — so it reads much lower than the Overview BU table\'s Truss margin, which nets the pass-through out. Same profit, different revenue denominator.')
           : 'This lab\'s net operating income ÷ its total income (both shown in the table below), after all allocation rules.' },
       { label: 'Total Expenses', value: fmtKPI(kpis.totalExpenses), color: 'var(--text)' },
       { label: 'Net Income (Est.)', value: fmtKPI(kpis.netOpIncome), color: kpis.netOpIncome >= 0 ? 'var(--action)' : 'var(--neg)' },
@@ -1045,7 +1105,7 @@ tr.t-bu-passthrough td.lbl { color: var(--muted); font-style: italic; }
     }
 
     // P&L table
-    html += buildPLTable(labData.rows || [], months, partial);
+    html += buildPLTable(rows, months, partial);
 
     return html;
   }

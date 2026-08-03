@@ -271,6 +271,20 @@ async function getCurrentPeriodData(tokens, realmId, accountingMethod = 'Accrual
           if (!name) continue;
           if (inCOGS) expense[name] = (expense[name] || 0) + val;
           else income[name] = (income[name] || 0) + val;
+
+          // QBO collapses a parent account into a flat Data row (no Section,
+          // no "Total X" summary) when none of its sub-accounts have activity
+          // in the period — common early in the month. If ACCOUNT_MAP expects
+          // the summary name, credit it here too. First-wins, matching the
+          // Section path above, so this is a no-op when the real section exists.
+          const summaryAlias = `Total ${name}`;
+          if (KNOWN_SUMMARY_ACCOUNTS.has(summaryAlias)) {
+            if (inCOGS) {
+              if (expense[summaryAlias] === undefined) expense[summaryAlias] = val;
+            } else if (income[summaryAlias] === undefined) {
+              income[summaryAlias] = val;
+            }
+          }
         }
       }
     }
